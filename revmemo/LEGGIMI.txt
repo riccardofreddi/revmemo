@@ -1,0 +1,342 @@
+======================================================================
+ RevMemo - GUIDA SEMPLICE
+ (questo e' l'unico file di istruzioni: gli altri si usano, non si leggono)
+======================================================================
+
+1) COSA FA
+----------------------------------------------------------------------
+- Legge i tuoi clienti dal file Excel e manda loro email di promemoria
+  prima della scadenza della revisione: a 30 giorni, a 10 giorni e a
+  1 giorno (come sul libretto: 09/2026 vale fino al 30/09/2026).
+- Le email portano il NOME, il LOGO e il COLORE del tuo centro.
+- Se un cliente risponde STOP all'email, il programma lo scopre da solo
+  e lo mette in pausa nell'Excel (Attivo = STOP).
+- Il titolare riceve ogni giorno un piccolo riepilogo di cio' che e' partito.
+- Non serve installare niente: tutto e' dentro la cartella. Serve solo Internet.
+- NUOVO: il PANNELLO - doppio click su apri_pannello.bat e fai tutto con
+  i pulsanti, senza toccare config.ini (vedi 1-bis).
+
+1-bis) IL PANNELLO: TUTTO CON I PULSANTI (il modo piu' facile)
+----------------------------------------------------------------------
+Doppio click su apri_pannello.bat: si apre una pagina con i pulsanti,
+in italiano, nel tuo browser. Tutto in un posto solo:
+ - HOME         la situazione: clienti, le STATISTICHE DEGLI INVII
+                (grafico mese per mese: parte dal mese del PRIMO
+                INVIO, senza colonne vuote dei mesi mai usati), le
+                EMAIL DA INVIARE OGGI (sono TUTTE: la lista resta alta 10 righe
+                e il resto si raggiunge con la barra a destra) e le
+                prossime scadenze (TUTTE in ordine, anche qui la
+                lista resta alta 10 righe e si scorre con la barra;
+                con poche righe la barra non compare). Poi i
+                bottoni: PROVA (nessun
+                invio) e INVIA ORA. Mentre un'azione lavora puoi
+                FERMARLA col pulsante FERMA o nasconderla con CHIUDI:
+                il risultato resta visibile finche' non lo chiudi tu,
+                anche dopo che e' finito
+ - MESSAGGIO    le PAROLE delle email senza Blocco note, con SALVA e
+                ANTEPRIMA separati (l'anteprima NON salva). Passa il
+                mouse sopra ogni voce o segnaposto: compare la
+                spiegazione di cosa fa
+ - CLIENTI      i clienti si aggiungono e si modificano DA QUI: bottone
+                NUOVO CLIENTE e si scrivono nel solito Excel, con
+                copia di sicurezza automatica prima di ogni cambiamento.
+                La scadenza la scrivi come sta sul libretto (es.
+                09/2026) e nell'elenco resta esattamente cosi'.
+                Tocchi SI'/NO per cambiare Revisione Fatta o Attivo (il
+                colore si mette da solo, centrati sotto la loro
+                colonna), RIATTIVA fa ripartire chi aveva risposto STOP,
+                MODIFICA corregge i dati del cliente, ELIMINA lo toglie
+                dal file (conferma prima e copia di sicurezza
+                automatica: le righe sotto salgono da sole). Se SALVI
+                una scadenza NUOVA, Revisione Fatta torna NO da sola e
+                i promemoria ripartono per la data nuova.
+                C'e' pure il CERCA per trovare subito un cliente e il
+                menu VEDI 20/30/50/100 RIGHE: scegli quante righe
+                vedere prima di scorrere dentro la tabella
+                (l'intestazione resta fissa e la scelta resta
+                memorizzata).
+                Se preferisci Excel: bottone APRI EXCEL e lavori da li',
+                i due modi restano sempre sincronizzati
+ - IMPOSTAZIONI la casella email (GMAIL o un'altra: scegli il nome
+                dal MENU - Gmail, Outlook/Hotmail, Libero, Virgilio,
+                Aruba - e Server e Porta si scrivono DA SOLI; col
+                tuo fornitore non c'e'? Scegli "Altro" e scrivili
+                tu), la Password per app, i dati del centro e pure il
+                CONTROLLO PC (con il suo bottone CHIUDI). Le risposte
+                dei clienti (anche lo STOP) arrivano sempre nella
+                casella del centro: il programma le legge da solo
+ - REGISTRO     chi ha ricevuto cosa (ogni promemoria parte 1 sola volta)
+                con il CERCA per email/targa/data ed ESPORTA IN EXCEL
+                (salva TUTTI i promemoria in registro_invii.xlsx e lo
+                apre), con lo stesso menu VEDI 20/30/50/100 RIGHE.
+                Le statistiche adesso stanno in HOME: sono la prima
+                cosa che si vede quando apri il pannello
+Il pannello gira SOLO su questo computer: nessun dato va online.
+Scrive nello stesso config.ini di sempre: se preferisci il Blocco
+note, config.ini funziona ancora uguale.
+Nota: resta aperta una finestra nera (e' il motore del pannello):
+puoi ridurla a icona, ma NON chiuderla finche' usi il pannello.
+Se la pagina non si apre, quella finestra ti mostra il motivo:
+fai una foto e inviala a chi ti assiste.
+
+2) I FILE DI QUESTA CARTELLA
+----------------------------------------------------------------------
+- avvia_prova.bat ......... PROVA: mostra cosa farebbe, senza inviare nulla
+- avvia_invio.bat ......... INVIO VERO dei promemoria (l'uso di tutti i giorni)
+- apri_pannello.bat ....... il PANNELLO: tutto con i pulsanti (vedi 1-bis)
+- controlla_pc.bat ........ controllo quando qualcosa non va (te lo dice)
+- controlla_pannello.bat .. controllo quando il PANNELLO non si apre:
+                            salva il risultato in assistenza_pannello.txt
+- colora_excel.bat ........ mette i colori nell'Excel (verde/rosso):
+                            puoi usarlo tu, dal pannello e' stato tolto
+- clienti_revisioni.xlsx .. I TUOI CLIENTI (l'unico file che modifichi spesso)
+- config.ini .............. impostazioni (email, password, dati del centro)
+- template_email.html ..... il disegno delle email (grafica); le PAROLE
+                            si scrivono in config.ini sezione [messaggio]
+- logo.png ................ il logo nelle email (sostituiscilo col tuo)
+- revmemo.py .............. il programma (non si tocca mai)
+- pannello.py / pannello.html  il pannello (non si toccano)
+- runtime/ ................ il motore interno (non si tocca mai)
+- reminders_log.txt ....... registro invii: si crea da solo (vedi sezione 9)
+- backup/ ................. copie di sicurezza del file clienti (automatiche)
+
+Se manca config.ini o il file clienti: si creano da soli al primo avvio.
+
+3) LA PRIMA VOLTA (5 passi)
+----------------------------------------------------------------------
+1. Doppio click su controlla_pc.bat -> deve dire tutto [OK]
+2. Apri config.ini con Blocco note (tasto destro -> Apri con -> Blocco note)
+   e compila: mittente, password_app (vedi sezione 5) e i dati del centro
+   nella sezione [centro] (nome, citta', telefono, email_contatti, colore_tema).
+   Se vuoi, cambia anche le PAROLE delle email: sezione [messaggio] (vedi 7)
+3. Salva e chiudi
+4. Doppio click su avvia_prova.bat -> guarda l'elenco senza inviare niente
+5. Tutto ok? Doppio click su avvia_invio.bat
+
+MODO PIU' FACILE: doppio click su apri_pannello.bat -> compili
+Impostazioni e Messaggio con i pulsanti e guardi l'ANTEPRIMA
+dell'email vera prima di inviare (vedi 1-bis).
+
+4) I CLIENTI: IL FILE EXCEL
+----------------------------------------------------------------------
+Apri clienti_revisioni.xlsx con doppio click. Le intestazioni sono alla
+RIGA 4 e non si toccano; tu scrivi DALLA RIGA 5 in giu' e cancelli gli 8
+clienti di esempio. Una riga per VEICOLO (stesso cliente con 2 macchine
+= 2 righe).
+
+Colonne:
+- Nome Cliente ......... nome e cognome (o ragione sociale)
+- Email ................ dove arriva il promemoria
+- Telefono ............. per gli SMS del futuro (facoltativo)
+- Targa ................ es. AB123CD
+- Scadenza Revisione ... come sul libretto: MESE/ANNO, es. 09/2026
+- Revisione Fatta ...... SÌ = nessuna email finche' non aggiorni la scadenza
+- Attivo ............... SÌ = riceve promemoria; NO = escluso;
+                         STOP = il cliente l'ha chiesto (vedi sezione 6)
+
+Colori automatici nelle CELLE di Revisione Fatta e Attivo:
+SÌ = verde, NO = rosso, STOP = rosso scuro. I colori cambiano da soli
+quando cambi SÌ o NO, senza rilanciare il programma. STOP non e' nel
+menu a tendina: lo scrive solo il programma quando un cliente lo
+chiede (cosi' non c'e' confusione).
+Se il tuo file non si colora (nato con una versione vecchia): doppio
+click su colora_excel.bat - non tocca i tuoi clienti.
+La colonna Scadenza e' in formato TESTO: scrivi 01/2026 e resta cosi'
+(non diventa "gen-26"; se era gia' diventato gen-26, colora_excel.bat
+lo riscrive 01/2026 da solo).
+
+Regole d'oro:
+- Quando il cliente rinnova la revisione: cambia il mese e rimetti
+  Revisione Fatta = NO (i promemoria ripartono da soli per il nuovo ciclo)
+- Per fare da cliente di prova va bene anche la TUA email, ma se
+  vuoi provare lo STOP devi RISPONDERE a un promemoria ricevuto
+  (vedi sezione 6)
+- Quando hai finito: salva (Ctrl+S) e CHIUDI Excel prima di lanciare
+  il programma (se resta aperto, il programma si ferma e te lo dice)
+
+5) LA PASSWORD PER APP DI GOOGLE (una volta sola, 5 minuti)
+----------------------------------------------------------------------
+Google non accetta la password normale per mandare email da programmi.
+Serve una "Password per app" di 16 caratteri:
+
+1. Vai su https://myaccount.google.com/security
+   e attiva la "Verifica in 2 passaggi" (se non c'e' gia')
+2. Vai su https://myaccount.google.com/apppasswords
+3. Crea una password per app (nome: RevMemo) -> Google mostra 16 caratteri
+4. Incollali in config.ini alla riga password_app =
+   (con o senza spazi: e' uguale, il programma li toglie da solo)
+5. Salva
+
+Questa stessa password serve anche per leggere le risposte STOP
+(sezione 6). La puoi cancellare in qualsiasi momento da quella pagina:
+e' un accesso dedicato al programma, non la tua password generale.
+
+NON USI GMAIL? Nessun problema: RevMemo funziona con QUALSIASI casella
+email. Dal PANNELLO -> Impostazioni -> carta "Casella email diversa da
+Gmail" compila SERVER e PORTA (esempi: Outlook smtp.office365.com 587,
+Libero smtp.libero.it 465, Virgilio smtp.virgilio.it 465, Aruba
+smtp.aruba.it 465). Da Blocco note e' la stessa cosa: sezione [smtp]
+righe host e porta. Se sbagli server o porta, il programma te lo dice
+al primo invio: basta correggere e riprovare.
+
+NON USI GMAIL? Nessun problema: RevMemo funziona con QUALSIASI casella
+email. Dal PANNELLO -> Impostazioni -> carta "Casella email diversa da
+Gmail" compila SERVER e PORTA (esempi: Outlook smtp.office365.com 587,
+Libero smtp.libero.it 465, Virgilio smtp.virgilio.it 465, Aruba
+smtp.aruba.it 465). Da Blocco note e' la stessa cosa: sezione [smtp]
+righe host e porta. Se sbagli server o porta, il programma te lo dice
+al primo invio: basta correggere e riprovare.
+
+6) LO STOP AUTOMATICO (quando un cliente non vuole piu' email)
+----------------------------------------------------------------------
+Nell'email c'e' scritto: "Non vuoi piu' ricevere promemoria? Rispondi
+con oggetto STOP". Ecco cosa succede:
+
+- Quando lanci avvia_invio.bat (o avvia_prova.bat), PRIMA di inviare il
+  programma guarda le email degli ultimi 7 giorni arrivate nella casella
+  mittente (quella in config.ini alla riga mittente)
+- Se una risposta viene da un cliente presente nell'Excel (stesso
+  indirizzo email) e contiene la parola STOP (vale stop, Stop, STOP,
+  anche dentro una frase), il programma scrive STOP nella colonna
+  Attivo di quel cliente e te lo mostra a schermo
+- Da quel momento quel cliente non riceve piu' niente
+- Per riattivarlo: nell'Excel rimetti Attivo = SÌ
+- Nella stessa casella, un cliente con 2 macchine viene messo in pausa
+  su entrambe le righe (stesso indirizzo = stessa persona)
+
+Protezioni (importanti, evitano STOP falsi):
+- Le COPIE dei promemoria che ti arrivano nella tua casella (quando
+  il programma manda un'email a te stesso) vengono ignorate: contengono
+  la parola STOP nel footer ma non sono risposte vere
+- Per provare lo STOP hai 2 modi:
+  a) dalla TUA casella: apri il promemoria ricevuto, premi RISPONDI,
+     scrivi STOP e invia. Deve essere una RISPOSTA (Re:) a un
+     promemoria, non un'email nuova; ha effetto se nell'Excel c'e'
+     una riga con la tua email
+  b) da un'altra casella (es. quella di un familiare o un amico):
+     esattamente come farebbe un cliente vero
+- Nelle risposte conta solo il testo scritto a mano: la parte citata
+  sotto ("Il giorno ... ha scritto:") viene ignorata. Se il cliente
+  risponde "VA BENE GRAZIE" NON entra in STOP, anche se nel messaggio
+  citato compare la parola STOP
+
+Attenzione:
+- Le risposte devono arrivare nella casella mittente: NON compilare la
+  riga risposta_a in config.ini, altrimenti lo STOP automatico non funziona
+- Lo STOP vale solo se l'indirizzo del mittente coincide con quello
+  scritto nell'Excel (colonna Email)
+- Se il cliente ha letto tu la sua email in Gmail prima di lanciare il
+  programma: nessun problema, la ricerca guarda gli ultimi 7 giorni
+
+7) IL MESSAGGIO E IL LOOK DELLE EMAIL
+----------------------------------------------------------------------
+LE PAROLE (config.ini, sezione [messaggio]): ogni centro scrive il
+messaggio COME VUOLE, senza toccare il codice. Si possono cambiare:
+- oggetto .............. l'oggetto dell'email
+- oggetto_1mese / oggetto_10giorni / oggetto_1giorno
+                         oggetti speciali per i 3 promemoria
+                         (vuoto = si usa l'oggetto generale)
+- saluto ................ l'apertura (es. "Gentile {NOME},")
+- testo ................. il corpo del messaggio (una riga vuota
+                          separa i paragrafi)
+- firma ................. la chiusura
+- riga_extra_piede ...... una riga in piu' nel piede (es. "Parcheggio
+                          gratuito per i clienti")
+- testo_disiscrizione ... le istruzioni di cancellazione nel piede
+                          (IMPORTANTE: lascia dentro la parola STOP)
+
+Dentro queste scritte i SEGNAPOSTO si riempiono da soli con i dati
+veri: {NOME} cliente, {TARGA}, {SCADENZA}, {GIORNI}, {TRAFRA}
+("tra 29 giorni"), {NOME_CENTRO}, {CITTA}, {INDIRIZZO}, {TELEFONO},
+{EMAIL_CENTRO}, {SITO_WEB}, {ORARI}, {PRODOTTO}.
+Nel testo: **parola** = grassetto. Es.: scade **entro il {SCADENZA}**.
+ATTENZIONE: le righe sotto "testo =" devono iniziare con qualche
+spazio (come gia' sono): non togliere lo spazio iniziale, altrimenti
+config.ini non si legge piu' (il programma te lo spiega se succede).
+
+NUOVI DATI DEL CENTRO (config.ini, sezione [centro]): oltre a nome,
+citta', telefono ed email ora ci sono anche indirizzo, sito_web e
+orari: se li compili appaiono nelle email, se restano vuoti no.
+
+IL LOOK (il disegno, non le parole):
+- LOGO: sostituisci il file logo.png con quello del tuo centro
+  (stesso nome esatto, formato PNG). Se Excel/OneDrive non ha finito di
+  sincronizzare, il programma te lo avvisa prima di mandare email mute
+- COLORE: in config.ini alla riga colore_tema (es. #1F3B66 blu,
+  #C8102E rosso, #1B7D46 verde)
+- GRAFICA: template_email.html e' il disegno (colori, misure, box
+  "GIORNI RIMANENTI"). Le PAROLE arrivano da config.ini, quindi NON
+  serve piu' toccarlo per cambiare una frase: si fa tutto in config.ini
+- AGGIORNAMENTO: se il tuo template_email.html e' di una versione
+  precedente, il programma lo porta da solo alla versione nuova al
+  primo avvio (la copia vecchia resta in template_email_vecchio.html)
+
+8) L'USO DI TUTTI I GIORNI
+----------------------------------------------------------------------
+1. Doppio click su apri_pannello.bat -> bottone INVIA ORA
+   (in alternativa: avvia_invio.bat come una volta)
+2. Fine: il titolare riceve il riepilogo di cio' che e' partito
+Consiglio: puoi far partire tutto da solo ogni mattina con
+"Utilita' di pianificazione" di Windows (attività giornaliera ore 9:00
+che avvia avvia_invio.bat) - chiedi a chi ti ha installato il programma.
+
+9) SE QUALCOSA NON VA
+----------------------------------------------------------------------
+- Il PANNELLO non si apre (o la pagina non arriva)
+    Doppio click su apri_pannello.bat: ora la finestra nera resta
+    aperta e ti dice il motivo: fai una foto. Se non basta, doppio
+    click su controlla_pannello.bat: controlla tutto e salva il
+    risultato in assistenza_pannello.txt (manda quel file o la foto)
+- "Windows ha protetto il tuo PC" o "Avviso di sicurezza"
+    E' la protezione per i file arrivati da internet: clicca
+    "Ulteriori informazioni" e poi "Esegui comunque". Il pacchetto
+    ora sblocca i file da solo alla prima apertura: di solito non
+    serve fare nulla
+- La finestra si chiude subito
+    Doppio click su controlla_pc.bat e leggi cosa dice
+- "Username and Password not accepted"
+    In config.ini non c'e' la Password per app (16 caratteri): sezione 5
+- "il file Excel risulta APERTO"
+    Excel e' ancora aperto (o OneDrive sta sincronizzando): chiudi,
+    aspetta qualche secondo e rilancia. Se continua: riavvia il PC
+- Non vedo il logo nell'email
+    In Gmail clicca "Mostra immagini" (a volte le nasconde la prima
+    volta). Se ancora niente: tasto destro su logo.png -> Proprieta'
+    e controlla che non sia vuoto (0 KB)
+- Voglio re-inviare le stesse email in prova
+    Cancella reminders_log.txt (si ricrea da solo al primo invio):
+    il programma "dimentica" cio' che ha gia' mandato e riparte
+- Ho messo la MIA email su una riga cliente e ora c'e' scritto STOP
+    Capito con le prime prove (versioni prima della 4.1): apri l'Excel
+    e rimetti SÌ nella colonna Attivo. Da ora in poi usa un'altra
+    email per le prove (vedi sezione 6)
+- Nell'Excel vedo "gen-26" al posto di 01/2026
+    E' la stessa cosa per il programma (calcola sempre il FINE mese
+    di quel mese, come sul libretto). Se vuoi vedere 01/2026:
+    doppio click su colora_excel.bat e la colonna diventa testo
+- Ho sbagliato un invio
+    Apri reminders_log.txt, cancella la riga di quel cliente e il
+    promemoria riparte al prossimo avvio
+- Devo aggiornare il programma a una versione nuova
+    Non riestrarre MAI lo zip dentro questa cartella: estrailo in una
+    cartella NUOVA e copia da li' solo i file che ti indica chi ti
+    assiste (di solito basta revmemo.py). I TUOI file (config.ini,
+    clienti_revisioni.xlsx, reminders_log.txt) non vanno mai toccati
+- Per la verifica completa
+    Doppio click su controlla_pc.bat (usa il Python incluso nel pacchetto)
+
+10) PER INSTALLARLO DA UN ALTRO CENTRO
+----------------------------------------------------------------------
+1. Copia l'intera cartella RevMemo e rinominala (es. "RevMemo - Centro Rossi")
+2. Casella Gmail del centro, password per app, dati del centro e
+   MESSAGGIO: il modo piu' facile e' apri_pannello.bat -> schede
+   IMPOSTAZIONI e MESSAGGIO (oppure config.ini come una volta)
+3. Sostituisci logo.png col logo del centro
+4. Apri clienti_revisioni.xlsx e cancella gli 8 clienti di esempio,
+   poi scrivi i clienti veri (dalla riga 5)
+5. Doppio click su apri_pannello.bat -> PROVA -> INVIA ORA
+   (oppure avvia_prova.bat e poi avvia_invio.bat)
+6. Cancella dalla copia la cartella backup/ se presente (si ricrea da sola)
+
+NIENTE DA INSTALLARE: il programma ha dentro tutto il necessario
+(cartella runtime). Serve solo Internet per mandare le email.

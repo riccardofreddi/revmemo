@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RevMemo — Pannello di controllo</title>
+<style>
+:root{
+  --blu:#0f2b46; --blu2:#16324f; --verde:#1a9e4b; --verde-scuro:#15833d;
+  --rosso:#c0392b; --ambra:#e67e22; --grigio:#5a7184; --sfondo:#eef2f5;
+  --bordo:#dbe4ec; --carta:#ffffff;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+body{margin:0; font-family:'Segoe UI', Arial, Helvetica, sans-serif;
+     background:var(--sfondo); color:#22303c; font-size:16px}
+header{background:linear-gradient(120deg,var(--blu),var(--blu2)); color:#fff;
+       padding:14px 20px 0; box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.marca{display:flex; align-items:center; gap:14px; padding-bottom:10px}
+.marca img{height:44px; border-radius:8px; background:#fff; padding:4px}
+.marca h1{font-size:22px; margin:0; letter-spacing:.3px}
+.marca .sotto{font-size:13px; opacity:.85}
+nav{display:flex; gap:4px; flex-wrap:wrap}
+nav button{border:0; background:rgba(255,255,255,.08); color:#dbe7f2;
+  padding:12px 18px; font-size:15px; font-weight:600; cursor:pointer;
+  border-radius:10px 10px 0 0; font-family:inherit}
+nav button.attiva{background:var(--sfondo); color:var(--blu)}
+main{max-width:980px; margin:22px auto 60px; padding:0 16px}
+section{display:none}
+section.attiva{display:block; animation:entra .18s ease-out}
+@keyframes entra{from{opacity:0; transform:translateY(6px)} to{opacity:1}}
+.carta{background:var(--carta); border:1px solid var(--bordo); border-radius:14px;
+       padding:20px; margin-bottom:16px; box-shadow:0 1px 4px rgba(20,40,60,.06)}
+.carta h2{margin:0 0 4px; font-size:19px; color:var(--blu)}
+.carta .desc{color:var(--grigio); font-size:14px; margin:0 0 14px}
+.riga-carte{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+            gap:12px; margin-bottom:16px}
+.mini{background:var(--carta); border:1px solid var(--bordo); border-radius:14px;
+      padding:14px 16px; text-align:center}
+.mini .num{font-size:30px; font-weight:700; color:var(--blu)}
+.mini .lbl{font-size:13px; color:var(--grigio); margin-top:2px}
+.mini.rosso .num{color:var(--rosso)} .mini.verde .num{color:var(--verde)}
+.bottone{display:inline-block; border:0; cursor:pointer; font-family:inherit;
+  font-size:16px; font-weight:700; padding:14px 22px; border-radius:12px;
+  background:var(--verde); color:#fff; margin:0 10px 10px 0; letter-spacing:.2px}
+.bottone:active{transform:scale(.98)}
+.bottone.vuoto{background:#fff; color:var(--verde-scuro);
+  border:2px solid var(--verde)}
+.bottone.grigio{background:#fff; color:var(--blu); border:2px solid var(--bordo)}
+.bottone.rosso{background:var(--rosso)}
+.bottone:disabled{opacity:.45; cursor:not-allowed}
+.campo{margin-bottom:14px}
+.campo label{display:block; font-weight:700; font-size:14px; color:var(--blu);
+             margin-bottom:5px}
+.campo input[type=text],.campo input[type=password],.campo textarea,.campo select{
+  width:100%; border:2px solid var(--bordo); border-radius:10px;
+  padding:11px 13px; font-size:15px; font-family:inherit; background:#fbfdfe}
+.campo textarea{resize:vertical; line-height:1.5}
+.campo input:focus,.campo textarea:focus,.campo select:focus{outline:0; border-color:var(--verde)}
+.campo .aiuto{font-size:12.5px; color:var(--grigio); margin-top:4px}
+.due{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.tre{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
+@media (max-width:700px){.due,.tre{grid-template-columns:1fr}}
+.segnaposto{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 14px}
+.segnaposto button{border:1px dashed var(--verde); background:#f2fbf5;
+  color:var(--verde-scuro); border-radius:20px; padding:5px 12px; cursor:pointer;
+  font-size:13px; font-weight:600; font-family:inherit}
+.riga-cerca{display:flex; gap:10px; flex-wrap:wrap; margin:4px 0 12px;
+  align-items:center}
+.riga-cerca input{flex:1; min-width:180px; border:2px solid var(--bordo);
+  border-radius:10px; padding:11px 13px; font-size:15px; font-family:inherit;
+  background:#fbfdfe}
+.riga-cerca input:focus{outline:0; border-color:var(--verde)}
+table{width:100%; border-collapse:collapse; font-size:14px}
+th{background:var(--blu); color:#fff; text-align:left; padding:9px 10px;
+   font-weight:600}
+td{padding:8px 10px; border-bottom:1px solid var(--bordo)}
+th.ctr,td.ctr{text-align:center}
+tr:nth-child(even) td{background:#f7fafc}
+.badge{display:inline-block; padding:3px 10px; border-radius:12px;
+  font-size:12px; font-weight:700}
+.badge.si{background:#d9f2e3; color:#12693a}
+.badge.no{background:#fbdeda; color:#8f2318}
+.badge.stop{background:#c00000; color:#fff}
+.terminale{background:#12212f; color:#c8e6c9; border-radius:12px; padding:14px;
+  font-family:Consolas,'Courier New',monospace; font-size:13px; white-space:pre-wrap;
+  max-height:340px; overflow:auto; margin-top:14px; display:none}
+.terminale vis{display:block}
+.stato-riga{display:flex; align-items:center; gap:10px; padding:10px 0;
+  border-bottom:1px solid var(--bordo); font-size:15px}
+.pallino{width:13px; height:13px; border-radius:50%; background:#9aa7b1; flex:none}
+.pallino.verde{background:var(--verde)} .pallino.rosso{background:var(--rosso)}
+.pallino.ambra{background:var(--ambra)}
+.giratore{width:22px; height:22px; border:3px solid #cfe0ee;
+  border-top-color:var(--blu); border-radius:50%; animation:gira .8s linear infinite;
+  display:none; margin:0 auto}
+@keyframes gira{to{transform:rotate(360deg)}}
+#velo{position:fixed; inset:0; background:rgba(10,25,40,.62); display:none;
+  align-items:center; justify-content:center; padding:18px; z-index:50}
+#velo.aperto{display:flex}
+.modale{background:#fff; border-radius:16px; max-width:720px; width:100%;
+  max-height:92vh; display:flex; flex-direction:column; overflow:hidden}
+.modale testata{display:flex}
+.modale .testata{padding:16px 20px; background:var(--blu); color:#fff;
+  display:flex; justify-content:space-between; align-items:center; gap:12px}
+.modale .testata h3{margin:0; font-size:16px}
+.modale .corpo{overflow:auto; padding:0}
+.modale iframe{width:100%; height:56vh; border:0; background:#fff}
+.modale .piede{padding:12px 16px; border-top:1px solid var(--bordo);
+  display:flex; justify-content:flex-end}
+#avviso{position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  background:#123; color:#fff; padding:13px 22px; border-radius:12px;
+  font-weight:600; z-index:60; box-shadow:0 6px 22px rgba(0,0,0,.3);
+  opacity:0; pointer-events:none; transition:opacity .25s}
+#avviso.verde{background:var(--verde-scuro)}
+#avviso.rosso{background:var(--rosso)}
+.nascosto{display:none !important}
+.occhio{position:absolute; margin-left:-52px; margin-top:12px; border:0;
+  background:none; cursor:pointer; font-size:17px}
+button.badge{cursor:pointer; border:0; font-family:inherit; font-size:12px;
+  font-weight:700; padding:3px 10px; border-radius:12px}
+button.badge:hover{filter:brightness(.92)}
+.bottone.piccolo{padding:7px 12px; font-size:13px; margin:0 4px 0 0;
+  border-radius:9px}
+#velo-cliente{position:fixed; inset:0; background:rgba(10,25,40,.62); display:none;
+  align-items:center; justify-content:center; padding:18px; z-index:55}
+#velo-cliente.aperto{display:flex}
+#velo-conferma{position:fixed; inset:0; background:rgba(10,25,40,.62); display:none;
+  align-items:center; justify-content:center; padding:18px; z-index:58}
+#velo-conferma.aperto{display:flex}
+#conferma-testo{white-space:pre-line; font-size:15px; line-height:1.55;
+  margin:0 0 18px; color:#22303c}
+.modale .contenuto{overflow:auto; padding:18px 20px}
+.piede-pagina{text-align:center; color:var(--grigio); font-size:12.5px;
+  margin-top:26px}
+.elenco-targhe{margin:8px 0 0; padding-left:18px; color:#33475b}
+.elenco-targhe li{margin:3px 0}
+.scroll-y{overflow-y:auto; overscroll-behavior:contain}
+.scroll-y th{position:sticky; top:0; z-index:2}
+.menu-righe{border:2px solid var(--bordo); border-radius:10px;
+  padding:10px 8px; font-size:14px; font-family:inherit; background:#fbfdfe;
+  color:#22303c; cursor:pointer}
+.menu-righe:focus{outline:0; border-color:var(--verde)}
+.barre-stat{display:flex; align-items:flex-end; gap:14px; height:130px;
+  padding:6px 4px 0; margin:4px 0 10px}
+.col-stat{flex:1; display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-end; height:100%; min-width:44px}
+.num-stat{font-size:14px; font-weight:700; color:var(--blu); margin-bottom:4px}
+.barra-stat{width:70%; max-width:64px; background:var(--verde);
+  border-radius:8px 8px 0 0}
+.barra-stat.attuale{background:var(--blu)}
+.barra-stat.vuota{background:#d7e2ec}
+.lbl-stat{font-size:12px; color:var(--grigio); margin-top:6px; white-space:nowrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca">
+    <img src="/logo.png" alt="logo" id="logo-img">
+    <div>
+      <h1 id="titolo-centro">RevMemo</h1>
+      <span class="sotto">Pannello di controllo — gira solo su questo computer</span>
+    </div>
+  </div>
+  <nav>
+    <button data-vista="home" class="attiva">🏠 Home</button>
+    <button data-vista="messaggio">✉️ Messaggio</button>
+    <button data-vista="clienti">👥 Clienti</button>
+    <button data-vista="impostazioni">⚙️ Impostazioni</button>
+    <button data-vista="registro">📋 Registro</button>
+  </nav>
+</header>
+<main>
+
+<!-- ==================== HOME ==================== -->
+<section id="vista-home" class="attiva">
+  <div class="riga-carte" id="mini-clienti"></div>
+  <div class="carta">
+    <h2>Statistiche invii</h2>
+    <p class="desc">Quanti promemoria sono partiti ogni mese: la lista
+       parte dal mese del <b>primo invio</b> e arriva a oggi (la colonna
+       blu è il mese in corso). Prima del primo invio resta ferma a zero.</p>
+    <div id="stat-invi"></div>
+  </div>
+  <div class="carta">
+    <h2>Email da inviare oggi</h2>
+    <p class="desc" id="desc-oggi">Controllo in corso...</p>
+    <ul class="elenco-targhe nascosto" id="lista-oggi"></ul>
+  </div>
+  <div class="carta">
+    <h2>Azioni</h2>
+    <p class="desc">La <b>PROVA</b> non manda niente: mostra solo chi riceverebe
+       l'email. <b>INVIA ORA</b> manda le email vere ai clienti. Mentre
+       lavora puoi continuare a usare il pannello, fermarla con <b>FERMA</b>
+       o nasconderla con <b>CHIUDI</b>: il risultato resta qui finché non
+       lo chiudi tu.</p>
+    <button class="bottone vuoto" id="b-prova"
+      title="Simulazione: NON manda nessuna email. Mostra solo chi riceverebe il promemoria, cosi' puoi controllare che tutto sia giusto.">▶️ PROVA (nessun invio)</button>
+    <button class="bottone" id="b-invia"
+      title="Manda le email VERE ai clienti che sono in finestra di invio (chiede prima una conferma). Ogni promemoria parte UNA SOLA VOLTA.">✅ INVIA ORA</button>
+    <button class="bottone rosso nascosto" id="b-ferma"
+      title="Interrompe subito l'azione in corso (i promemoria gia' partiti restano inviati).">⏹️ FERMA</button>
+    <button class="bottone grigio nascosto" id="b-chiudi-uscita"
+      title="Nasconde questa finestra dell'avanzamento. L'azione continua da sola e finisce per conto suo.">✖ Chiudi</button>
+    <div class="giratore" id="giratore"></div>
+    <div class="terminale" id="uscita"></div>
+  </div>
+  <div class="carta">
+    <h2>Prossime scadenze</h2>
+    <p class="desc">Tutte le scadenze in arrivo, in ordine: chi scade prima
+       sta in alto. La lista resta alta <b>10 righe</b>: per vedere le
+       altre scorri con la barra a destra (se le righe sono poche la
+       barra non compare). Tutte le scadenze stanno anche nella scheda
+       Clienti.</p>
+    <div id="tabella-prossime" class="scroll-y"></div>
+  </div>
+</section>
+
+<!-- ==================== MESSAGGIO ==================== -->
+<section id="vista-messaggio">
+  <div class="carta">
+    <h2>Le parole delle email</h2>
+    <p class="desc">Quello che scrivi qui arriva dentro le email dei clienti.
+       Premi <b>SALVA</b> per salvare e <b>ANTEPRIMA</b> per vedere l'email
+       vera con un cliente di esempio. <b>Passa col mouse sopra ogni voce:</b>
+       compare la spiegazione di cosa fa.</p>
+    <div class="campo">
+      <label title="L'oggetto è la PRIMA cosa che il cliente legge nella sua casella email. Scrivilo breve e chiaro: es. 'Promemoria revisione {TARGA}'. Puoi usare i segnaposto come {NOME} e {TARGA}.">Oggetto dell'email</label>
+      <input type="text" id="m-oggetto">
+      <div class="aiuto">La prima cosa che il cliente legge nella sua posta</div>
+    </div>
+    <div class="tre">
+      <div class="campo">
+        <label title="Se scrivi qualcosa qui, questa riga la riceve SOLO chi scade tra circa 30 GIORNI. Lascia vuoto per usare sempre l'oggetto normale.">Oggetto — 30 giorni <i>(facoltativo)</i></label>
+        <input type="text" id="m-oggetto-1mese">
+      </div>
+      <div class="campo">
+        <label title="Se scrivi qualcosa qui, questa riga la riceve SOLO chi scade tra circa 10 GIORNI. Lascia vuoto per usare sempre l'oggetto normale.">Oggetto — 10 giorni <i>(facoltativo)</i></label>
+        <input type="text" id="m-oggetto-10giorni">
+      </div>
+      <div class="campo">
+        <label title="Se scrivi qualcosa qui, questa riga la riceve SOLO chi scade DOMANI: urgenza massima. Lascia vuoto per usare sempre l'oggetto normale.">Oggetto — 1 giorno <i>(facoltativo)</i></label>
+        <input type="text" id="m-oggetto-1giorno">
+      </div>
+    </div>
+    <div class="campo">
+      <label title="La prima riga della email, quella che saluta il cliente. Scrivi {NOME} e al suo posto appare il nome (es. 'Ciao Mario').">Saluto</label>
+      <textarea id="m-saluto" rows="2"></textarea>
+    </div>
+    <div class="campo">
+      <label title="Il cuore della email: qui spieghi al cliente che la revisione sta per scadere e cosa deve fare. Una riga VUOTA = paragrafo nuovo. Scrivendo **parola** la parola diventa GRASSETTO. I pulsanti colorati qui sotto inseriscono i segnaposto (es. {TARGA} = la targa del cliente).">Testo del messaggio</label>
+      <textarea id="m-testo" rows="8"></textarea>
+      <div class="aiuto">Una riga VUOTA = paragrafo nuovo &nbsp;•&nbsp;
+        **parola** = grassetto &nbsp;•&nbsp; clicca un segnaposto per scriverlo:</div>
+      <div class="segnaposto" id="segnaposto"></div>
+    </div>
+    <div class="due">
+      <div class="campo">
+        <label title="Come chiudi la email: es. 'Lo staff del Centro Rossi' oppure il tuo nome. È l'ultima cosa che il cliente legge.">Firma</label>
+        <textarea id="m-firma" rows="2"></textarea>
+      </div>
+      <div class="campo">
+        <label title="Una riga in più in fondo alla email, dopo la firma: es. 'Parcheggio gratuito per i clienti'. Lascia vuoto se non serve.">Riga extra <i>(facoltativa)</i></label>
+        <input type="text" id="m-extra" placeholder="es. Parcheggio gratuito per i clienti">
+      </div>
+    </div>
+    <div class="campo">
+      <label title="Le istruzioni per smettere di ricevere i promemoria. NON togliere la parola STOP: è esattamente quella parola che mette in pausa il cliente quando risponde STOP alla email.">Istruzioni di disiscrizione</label>
+      <input type="text" id="m-disiscrizione">
+      <div class="aiuto"><b>Importante:</b> lascia la parola STOP dentro: è la
+        parola che mette in pausa i clienti quando rispondono.</div>
+    </div>
+    <button class="bottone vuoto" id="b-salva-messaggio"
+      title="Salva le parole scritte qui sopra: le email partiranno con questi testi. Se cambi qualcosa e NON premi SALVA, resta quello vecchio.">💾 SALVA</button>
+    <button class="bottone" id="b-anteprima"
+      title="Mostra l'email VERA come la vedrà il cliente, con un cliente di esempio (Mario Rossi). NON salva niente: se hai cambiato qualcosa, prima premi SALVA.">👁️ ANTEPRIMA</button>
+  </div>
+</section>
+
+<!-- ==================== CLIENTI ==================== -->
+<section id="vista-clienti">
+  <div class="carta">
+    <h2>Gestione clienti</h2>
+    <p class="desc">Aggiungi e modifica i clienti DA QUI: tutto finisce nel
+       file <b>clienti_revisioni.xlsx</b>, con copia di sicurezza automatica
+       prima di ogni cambiamento. Se preferisci Excel, aprilo col bottone e
+       lavora da lì: i due modi restano sempre sincronizzati. STOP = il
+       cliente ha risposto STOP all'email: col bottone RIATTIVA riparte.</p>
+    <button class="bottone" id="b-nuovo-cliente"
+      title="Aggiunge un cliente nuovo: si apre la scheda con i campi da compilare (nome, targa, email, scadenza).">➕ NUOVO CLIENTE</button>
+    <button class="bottone grigio" id="b-apri-excel"
+      title="Apre il file clienti_revisioni.xlsx nel programma Excel: è lo stesso file che compila il pannello, i due modi restano sincronizzati.">📂 Apri Excel</button>
+  </div>
+  <div class="carta">
+    <h2>Elenco clienti</h2>
+    <p class="desc" id="desc-elenco">Lettura in corso...</p>
+    <div class="riga-cerca">
+      <input type="text" id="k-cerca"
+        placeholder="Cerca per nome, targa o email (es. Rossi, AB123CD)"
+        title="Mostra SOLO i clienti che corrispondono a quello che scrivi: basta anche solo una parte del nome o della targa.">
+      <button class="bottone" id="b-cerca-clienti"
+        title="Cerca nell'elenco: mostra solo i clienti che corrispondono.">🔍 CERCA</button>
+      <button class="bottone grigio nascosto" id="b-tutti-clienti"
+        title="Azzera la ricerca e riporta l'elenco completo.">✖ Mostra tutto</button>
+      <select id="k-righe" class="menu-righe" title="Quante righe vedi prima di dover scorrere: 20, 30, 50 o 100. Le altre si raggiungono con la barra a destra della tabella (l'intestazione resta fissa). La scelta resta memorizzata.">
+        <option value="20">Vedi 20 righe</option>
+        <option value="30">Vedi 30 righe</option>
+        <option value="50">Vedi 50 righe</option>
+        <option value="100">Vedi 100 righe</option>
+      </select>
+    </div>
+    <div id="tabella-clienti"></div>
+  </div>
+</section>
+
+<!-- ==================== IMPOSTAZIONI ==================== -->
+<section id="vista-impostazioni">
+  <div class="carta">
+    <h2>Email del centro</h2>
+    <p class="desc">La casella DA CUI partono i promemoria: Gmail oppure
+       un'altra casella (Outlook, Libero, Virgilio... — in quel caso
+       compila anche la carta qui sotto). Con Gmail serve la
+       <b>Password per app</b> di Google (16 caratteri) — vedi LEGGIMI.txt
+       sezione 5.</p>
+    <div id="stato-gmail"></div>
+    <div class="campo">
+      <label title="La casella da cui partono i promemoria: es. nomecentro@gmail.com oppure la tua casella di lavoro (Outlook, Libero, Virgilio, Aruba...).">La tua email</label>
+      <input type="text" id="i-mittente" placeholder="nomecentro@gmail.com">
+      <div class="aiuto">Le risposte dei clienti (anche lo STOP) arrivano
+        sempre in questa casella: il programma le legge da solo, niente
+        da impostare.</div>
+    </div>
+    <div class="campo" style="position:relative">
+      <label>Password per app <i>(o password della casella)</i></label>
+      <input type="password" id="i-password" placeholder="">
+      <button class="occhio" id="b-occhio" title="mostra/nascondi">👁️</button>
+      <div class="aiuto" id="aiuto-password">Lascia vuota se è già salvata: scrivila solo se vuoi cambiarla. Gmail: la Password per app di Google (16 caratteri). Con Libero, Virgilio e simili: la password normale della casella.</div>
+    </div>
+  </div>
+  <div class="carta">
+    <h2>Casella email diversa da Gmail</h2>
+    <p class="desc">Usi Outlook, Libero, Virgilio, Aruba o un'altra casella?
+       Scegli il nome dal <b>menu qui sotto</b>: server e porta si scrivono
+       da soli, senza sbagliare. Il tuo fornitore non c'è? Scegli
+       <b>Altro</b> e scrivili a mano: li trovi cercando su internet
+       "SMTP" più il nome della tua email (es. "SMTP Tiscali").</p>
+    <div class="campo">
+      <label title="Il menu mette da solo il server e la porta giusti per la tua casella: Gmail, Outlook/Hotmail, Libero, Virgilio, Aruba. Se la tua casella non c'è nell'elenco, scegli 'Altro (lo scrivo io)'.">La tua casella è di...</label>
+      <select id="i-provider">
+        <option value="">— scegli dalla lista —</option>
+        <option value="gmail">Gmail</option>
+        <option value="outlook">Outlook / Hotmail</option>
+        <option value="libero">Libero</option>
+        <option value="virgilio">Virgilio</option>
+        <option value="aruba">Aruba</option>
+        <option value="altro">Altro (lo scrivo io)</option>
+      </select>
+      <div class="aiuto">Basta scegliere il nome qui: i due campi sotto si
+        riempiono da soli.</div>
+    </div>
+    <div class="due">
+      <div class="campo">
+        <label title="L'indirizzo del server di posta della tua casella (si chiama SMTP). Se hai scelto dal menu è già giusto; con 'Altro' lo scrivi qui.">Server email (SMTP)</label>
+        <input type="text" id="i-host" placeholder="es. smtp.libero.it">
+        <div class="aiuto">Se hai scelto dal menu qui sopra è già pieno e giusto.</div>
+      </div>
+      <div class="campo">
+        <label title="La porta del server: scritta da sola dal menu (di solito 465; Outlook usa 587). Con 'Altro' la scrivi tu.">Porta</label>
+        <input type="text" id="i-porta" placeholder="es. 465">
+        <div class="aiuto">Scritta da sola dal menu: di solito <b>465</b>,
+          con Outlook <b>587</b>.</div>
+      </div>
+    </div>
+  </div>
+  <div class="carta">
+    <h2>Dati del centro</h2>
+    <p class="desc">Appaiono nelle email e nel piede del pannello.</p>
+    <div class="due">
+      <div class="campo"><label>Nome del centro</label>
+        <input type="text" id="i-nome"></div>
+      <div class="campo"><label>Città</label>
+        <input type="text" id="i-citta"></div>
+    </div>
+    <div class="campo"><label>Indirizzo <i>(facoltativo)</i></label>
+      <input type="text" id="i-indirizzo" placeholder="Via Roma 12, 20121 Milano (MI)"></div>
+    <div class="tre">
+      <div class="campo"><label>Telefono</label>
+        <input type="text" id="i-telefono"></div>
+      <div class="campo"><label>Email contatti</label>
+        <input type="text" id="i-email"></div>
+      <div class="campo"><label>Sito web <i>(facoltativo)</i></label>
+        <input type="text" id="i-sito"></div>
+    </div>
+    <div class="due">
+      <div class="campo"><label>Orari di apertura <i>(facoltativo)</i></label>
+        <input type="text" id="i-orari" placeholder="Lun-Ven 8:00-13:00 e 14:30-18:00, Sab 8:00-12:00"></div>
+      <div class="campo"><label>Colore delle email</label>
+        <input type="color" id="i-colore" style="width:64px;height:44px;
+          border:2px solid var(--bordo);border-radius:10px;background:#fff;
+          padding:3px;cursor:pointer"></div>
+    </div>
+  </div>
+  <div class="carta">
+    <h2>Nome del prodotto <i>(white label)</i></h2>
+    <p class="desc">Il nome che appare in piccolo nel piede delle email. Puoi
+       metterci il nome che vuoi.</p>
+    <div class="campo"><input type="text" id="i-prodotto" style="max-width:280px"></div>
+    <button class="bottone vuoto" id="b-salva-impostazioni"
+      title="Salva tutte le impostazioni di questa pagina: email, dati del centro e nome del prodotto.">💾 SALVA IMPOSTAZIONI</button>
+  </div>
+  <div class="carta">
+    <h2>Controllo del PC</h2>
+    <p class="desc">Verifica che tutto nel computer sia a posto (programma
+       incluso, file, porte, blocco Windows). Se qualcosa non funziona,
+       manda il risultato a chi ti assiste.</p>
+    <button class="bottone grigio" id="b-controllo"
+      title="Controlla il computer e mostra il risultato qui sotto. Non cambia niente: solo letture.">🩺 CONTROLLO PC</button>
+    <button class="bottone grigio nascosto" id="b-chiudi-controllo"
+      title="Nasconde il risultato del controllo.">✖ Chiudi</button>
+    <div class="giratore" id="giratore-controllo"></div>
+    <div class="terminale" id="uscita-controllo"></div>
+  </div>
+</section>
+
+<!-- ==================== REGISTRO ==================== -->
+<section id="vista-registro">
+  <div class="carta">
+    <h2>Registro dei promemoria inviati</h2>
+    <p class="desc">Chi ha ricevuto cosa (dal file reminders_log.txt). Ogni
+       promemoria parte UNA SOLA VOLTA, sempre. Qui vedi gli invii più
+       recenti: col menu qui sotto scegli quante righe vedere (20, 30, 50 o
+       100), le altre si raggiungono scorrendo con la barra a destra. Con
+       ESPORTA IN EXCEL li salvi tutti in un file Excel:</p>
+    <div class="riga-cerca">
+      <input type="text" id="r-cerca"
+        placeholder="Cerca per email, targa o data (es. Rossi, AB123CD)"
+        title="Mostra SOLO i promemoria che corrispondono a quello che scrivi: email, targa o data. Basta anche solo una parte.">
+      <button class="bottone" id="b-cerca-registro"
+        title="Cerca nel registro: mostra solo i promemoria che corrispondono.">🔍 CERCA</button>
+      <button class="bottone grigio nascosto" id="b-tutti-registro"
+        title="Azzera la ricerca e riporta l'elenco degli invii recenti.">✖ Mostra tutto</button>
+      <button class="bottone vuoto" id="b-esp-registro"
+        title="Crea un file Excel (registro_invii.xlsx) con TUTTI i promemoria inviati — non solo gli ultimi 250 — e lo apre. Utile per archiviare o stampare.">📊 ESPORTA IN EXCEL</button>
+      <select id="r-righe" class="menu-righe" title="Quante righe vedi prima di dover scorrere: 20, 30, 50 o 100. Le altre si raggiungono con la barra a destra della tabella (l'intestazione resta fissa). La scelta resta memorizzata.">
+        <option value="20">Vedi 20 righe</option>
+        <option value="30">Vedi 30 righe</option>
+        <option value="50">Vedi 50 righe</option>
+        <option value="100">Vedi 100 righe</option>
+      </select>
+    </div>
+    <div id="tabella-registro"></div>
+  </div>
+</section>
+
+<p class="piede-pagina" id="piede-pagina"></p>
+</main>
+
+<!-- modal anteprima -->
+<div id="velo">
+  <div class="modale">
+    <div class="testata">
+      <h3 id="anteprima-oggetto"></h3>
+      <button class="bottone rosso" style="margin:0;padding:9px 16px" id="b-chiudi">✕ Chiudi</button>
+    </div>
+    <div class="corpo"><iframe id="anteprima-frame" sandbox=""></iframe></div>
+    <div class="piede"><span style="color:var(--grigio);font-size:13px;margin:auto 0">
+      Anteprima con cliente di esempio: Mario Rossi, targa AB123CD, scadenza tra 10 giorni</span></div>
+  </div>
+</div>
+<div id="velo-cliente">
+  <div class="modale" style="max-width:600px">
+    <div class="testata">
+      <h3 id="titolo-cliente">Nuovo cliente</h3>
+      <button class="bottone rosso" style="margin:0;padding:9px 16px" id="b-annulla-cliente">✕ Annulla</button>
+    </div>
+    <div class="corpo contenuto">
+      <input type="hidden" id="c-riga">
+      <div class="due">
+        <div class="campo"><label>Nome e cognome *</label>
+          <input type="text" id="c-nome" placeholder="Mario Rossi"></div>
+        <div class="campo"><label>Targa *</label>
+          <input type="text" id="c-targa" placeholder="AB123CD"
+                 style="text-transform:uppercase"></div>
+      </div>
+      <div class="campo"><label>Email *</label>
+        <input type="text" id="c-email" placeholder="mario.rossi@email.it"></div>
+      <div class="due">
+        <div class="campo"><label>Telefono <i>(facoltativo)</i></label>
+          <input type="text" id="c-telefono" placeholder="347 1122334"></div>
+        <div class="campo"><label>Scadenza revisione *</label>
+          <input type="text" id="c-scadenza" placeholder="MESE/ANNO — es. 09/2026"
+            title="Scrivi il mese e l'anno ESATTAMENTE come stanno scritti sul libretto (es. 09/2026): nell'elenco resta così, non la cambio io. Puoi anche scrivere la data completa (es. 30/09/2026).">
+          <div class="aiuto">Scrivila come sta sul libretto (es. 09/2026):
+            resta esattamente così nell'elenco.</div>
+        </div>
+      </div>
+      <p class="desc" style="margin-bottom:0">* campi obbligatori. La
+         scadenza la vedi sempre come l'hai scritta (es. 09/2026).</p>
+    </div>
+    <div class="piede">
+      <button class="bottone" style="margin:0" id="b-salva-cliente">💾 SALVA CLIENTE</button>
+    </div>
+  </div>
+</div>
+<!-- conferma interna: finestra del pannello con solo la domanda e i due
+     tasti (window.confirm del browser mostrava sopra anche l'indirizzo
+     "127.0.0.1:8768 dice:") -->
+<div id="velo-conferma">
+  <div class="modale" style="max-width:470px">
+    <div class="testata">
+      <h3>Confermi?</h3>
+      <button class="bottone rosso" style="margin:0;padding:9px 16px" id="b-annulla-conferma">✕ Annulla</button>
+    </div>
+    <div class="corpo contenuto">
+      <p id="conferma-testo"></p>
+      <div style="display:flex; gap:10px; justify-content:flex-end">
+        <button class="bottone grigio" style="margin:0" id="conferma-no">No, annulla</button>
+        <button class="bottone" style="margin:0" id="conferma-ok">Sì, procedi</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="avviso"></div>
+
+<script>
+"use strict";
+// ------------------------------------------------------------------
+// piccole utilita'
+const $ = id => document.getElementById(id);
+const VA = v => (v == null ? "" : String(v));
+
+async function api(url, corpo) {
+  const opzioni = corpo ? {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify(corpo)}
+    : {};
+  const r = await fetch(url, opzioni);
+  const dati = await r.json().catch(() => ({"errore":"risposta non leggibile"}));
+  if (!r.ok && !dati.errore) dati.errore = "errore " + r.status;
+  return dati;
+}
+
+let avvisoTimer = null;
+function avviso(testo, tipo) {
+  const el = $("avviso");
+  el.textContent = testo;
+  el.className = tipo || "verde";
+  el.style.opacity = 1;
+  clearTimeout(avvisoTimer);
+  avvisoTimer = setTimeout(() => el.style.opacity = 0, 2600);
+}
+
+// ------------------------------------------------------------------
+// CONFERME SENZA IL QUADRATINO DEL BROWSER:
+// window.confirm mostrava sopra la domanda anche "127.0.0.1:8768 dice:".
+// Adesso la conferma e' una finestra del pannello: solo la domanda e i
+// due tasti (Sì / No). Restituisce una promessa: true se confermi.
+let confermaInAttesa = null;
+function chiediConferma(testo, tastoOk) {
+  return new Promise(ok => {
+    if (confermaInAttesa) {        // conferma gia' aperta: vale come "No"
+      const vecchia = confermaInAttesa;
+      confermaInAttesa = null;
+      vecchia(false);
+    }
+    confermaInAttesa = ok;
+    $("conferma-testo").textContent = testo;
+    $("conferma-ok").textContent = tastoOk || "Sì, procedi";
+    $("velo-conferma").classList.add("aperto");
+    $("conferma-ok").focus();
+  });
+}
+function chiudiConferma(risposta) {
+  const inAttesa = confermaInAttesa;
+  confermaInAttesa = null;
+  $("velo-conferma").classList.remove("aperto");
+  if (inAttesa) inAttesa(risposta);
+}
+$("conferma-ok").addEventListener("click", () => chiudiConferma(true));
+$("conferma-no").addEventListener("click", () => chiudiConferma(false));
+$("b-annulla-conferma").addEventListener("click", () => chiudiConferma(false));
+$("velo-conferma").addEventListener("click", e => {
+  if (e.target === $("velo-conferma")) chiudiConferma(false);  // clic fuori: No
+});
+$("velo-conferma").addEventListener("keydown", e => {
+  if (e.key === "Escape") chiudiConferma(false);               // ESC: No
+});
+
+function formattaData(iso) {
+  if (!iso) return "";
+  const p = iso.split("-");
+  return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso;
+}
+
+// ------------------------------------------------------------------
+// navigazione a schede
+const CARICATE = {};
+document.querySelectorAll("nav button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(x => x.classList.remove("attiva"));
+    document.querySelectorAll("main section").forEach(x => x.classList.remove("attiva"));
+    b.classList.add("attiva");
+    $("vista-" + b.dataset.vista).classList.add("attiva");
+    const vista = b.dataset.vista;
+    if (vista === "home") caricaStato();
+    if (vista === "messaggio" && !CARICATE.messaggio) caricaMessaggio();
+    if (vista === "impostazioni") {
+      if (!CARICATE.impostazioni) caricaImpostazioni();
+      caricaStato();          // aggiorna il pallino di Gmail
+    }
+    if (vista === "registro") caricaRegistro();
+    if (vista === "clienti") caricaClienti();
+  });
+});
+
+// ------------------------------------------------------------------
+// HOME
+function badge(testo, classe) {
+  return '<span class="badge ' + classe + '">' + testo + "</span>";
+}
+
+async function caricaStato() {
+  const s = await api("/api/stato");
+  if (s.errore) avviso(s.errore, "rosso");
+  $("titolo-centro").textContent = VA(s.nome_centro) || "RevMemo";
+  $("piede-pagina").textContent = VA(s.prodotto) +
+    " — pannello locale: i dati non escono da questo computer";
+
+  // mini cartelle clienti
+  const c = s.clienti;
+  if (!c) {
+    $("mini-clienti").innerHTML = '<div class="mini"><div class="num">—</div>' +
+      '<div class="lbl">file clienti non ancora creato: fai una PROVA e lo creo io</div></div>';
+  } else {
+    $("mini-clienti").innerHTML =
+      mini(c.totali, "clienti totali") + mini(c.attivi, "attivi") +
+      mini(c.in_stop, "in STOP") + mini(c.fatte, "revisione fatta");
+    // oggi
+    if (c.in_finestra_oggi > 0) {
+      const giaInv = c.in_finestra_oggi - c.da_inviare_oggi;
+      $("desc-oggi").innerHTML = "<b>Oggi tocca inviare " + c.in_finestra_oggi +
+        " promemoria</b> (" + c.da_inviare_oggi + " da mandare, " + giaInv +
+        " gia\u2019 inviat" + (giaInv === 1 ? "o" : "i") + " in passato).";
+      $("lista-oggi").innerHTML = (c.oggi_elenco || []).map(x =>
+        "<li><b>" + esc(x.targa) + "</b> — " + esc(x.nome) + " (scade " +
+        esc(x.scadenza) + ")" +
+        (x.inviato ? " — " + badge("gi\u00e0 inviato", "si") : "") + "</li>").join("");
+      $("lista-oggi").classList.remove("nascosto");
+      fissaLista($("lista-oggi"), 10);
+    } else {
+      $("desc-oggi").textContent =
+        "Oggi niente da inviare: le finestre di invio sono " +
+        "il 26-30 del mese prima, poi 8-10 giorni e 1-2 giorni prima della scadenza.";
+    }
+    // prossime scadenze (TUTTE: la tabella scorre dopo 10 righe)
+    if (c.prossime.length) {
+      $("tabella-prossime").innerHTML = tabella(
+        ["Cliente", "Targa", "Scade il", "Tra"],
+        c.prossime.map(x => [esc(x.nome), "<b>" + esc(x.targa) + "</b>",
+          esc(x.scadenza), "tra " + x.giorni + " giorni"]));
+      fissaAltezza($("tabella-prossime"), 10);
+    } else {
+      $("tabella-prossime").innerHTML =
+        '<p class="desc">Nessuna scadenza in arrivo.</p>';
+    }
+  }
+  // statistiche invii (mesi dal primo utilizzo)
+  disegnaStatistiche(s.statistiche);
+  // stato della casella email (verde = pronta, ambra = manca il server
+  // per una casella non Gmail, rosso = da completare)
+  $("stato-gmail").innerHTML =
+    s.email_stato === "ok"
+      ? statoRiga("verde", "Email pronta: <b>" + esc(s.mittente) + "</b>")
+      : (s.email_stato === "parziale"
+        ? statoRiga("ambra", esc(VA(s.email_messaggio)))
+        : statoRiga("rosso", "Da completare: scrivi l'email e la Password per app qui sopra."));
+}
+function mini(num, lbl) {
+  return '<div class="mini"><div class="num">' + num + "</div><div class='lbl'>" +
+         lbl + "</div></div>";
+}
+function statoRiga(colore, testo) {
+  return '<div class="stato-riga"><span class="pallino ' + colore + '"></span>' +
+         testo + "</div>";
+}
+function esc(t) {
+  return VA(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function tabella(testate, righe, centrate) {
+  if (!righe.length) return '<p class="desc">Nessun dato.</p>';
+  const c = centrate || [];
+  const testa = testate.map((h, i) =>
+    "<th" + (c.includes(i) ? ' class="ctr"' : "") + ">" + h + "</th>").join("");
+  const corpo = righe.map(r => "<tr>" + r.map((cella, i) =>
+    "<td" + (c.includes(i) ? ' class="ctr"' : "") + ">" + cella +
+    "</td>").join("") + "</tr>").join("");
+  return "<table><thead><tr>" + testa + "</tr></thead><tbody>" + corpo +
+         "</tbody></table>";
+}
+
+// ------------------------------------------------------------------
+// SCORRIMENTO DELLE LISTE LUNGHE:
+// - le liste di Home (email di oggi, prossime scadenze) restano alte
+//   10 righe e il resto si raggiunge con la barra a destra;
+// - le tabelle di Clienti e Registro mostrano 20/30/50/100 righe a scelta
+//   (menu a tendina, scelta memorizzata); l'intestazione resta FISSA
+//   mentre scorri.
+const RIGHE_MENU = [20, 30, 50, 100];
+function memLeggi(chiave) {
+  try { return localStorage.getItem(chiave); } catch (e) { return null; }
+}
+function memScrivi(chiave, valore) {
+  try { localStorage.setItem(chiave, valore); } catch (e) {}
+}
+function fissaAltezza(dove, righe) {
+  // adatta l'altezza del contenitore a: intestazione + "righe" righe
+  const tab = dove.querySelector("table");
+  if (!tab || tab.rows.length < 2) return;
+  const testa = tab.tHead ? tab.tHead.rows[0].offsetHeight : 0;
+  const passo = tab.rows[1].offsetHeight;
+  dove.classList.add("scroll-y");
+  dove.style.maxHeight = Math.ceil(testa + passo * righe + 2) + "px";
+}
+function fissaLista(el, righe) {
+  const voci = el.querySelectorAll("li");
+  if (!voci.length) return;
+  const st = getComputedStyle(voci[0]);
+  const passo = voci[0].offsetHeight
+    + (parseFloat(st.marginTop) || 0) + (parseFloat(st.marginBottom) || 0);
+  el.classList.add("scroll-y");
+  el.style.maxHeight = Math.ceil(passo * righe + 2) + "px";
+}
+function righeAttuali(menuId, chiave) {
+  let n = Number(memLeggi(chiave));
+  if (RIGHE_MENU.indexOf(n) < 0) n = 20;
+  $(menuId).value = String(n);
+  return n;
+}
+
+// ------------------------------------------------------------------
+// MESSAGGIO
+// segnaposto: ognuno con la sua spiegazione al passaggio del mouse
+const SEGNAPOSTI = [
+  ["{NOME}", "Il nome del cliente (es. Mario)"],
+  ["{TARGA}", "La targa del cliente (es. AB123CD)"],
+  ["{SCADENZA}", "La data di scadenza della revisione (es. 30/09/2026)"],
+  ["{GIORNI}", "Quanti giorni mancano alla revisione (es. 10)"],
+  ["{TRAFRA}", "Scritta gia' pronta: 'tra 10 giorni' oppure 'tra 1 giorno'"],
+  ["{NOME_CENTRO}", "Il nome del tuo centro (lo scrivi in Impostazioni)"],
+  ["{CITTA}", "La citta' del centro (Impostazioni)"],
+  ["{INDIRIZZO}", "L'indirizzo del centro (Impostazioni)"],
+  ["{TELEFONO}", "Il telefono del centro (Impostazioni)"],
+  ["{EMAIL_CENTRO}", "L'email dei contatti del centro (Impostazioni)"],
+  ["{SITO_WEB}", "Il sito web del centro (Impostazioni)"],
+  ["{ORARI}", "Gli orari di apertura (Impostazioni)"],
+  ["{PRODOTTO}", "Il nome del prodotto nel piede delle email (Impostazioni)"]];
+$("segnaposto").innerHTML = SEGNAPOSTI.map(s =>
+  "<button type='button' title=\"" + s[1] + "\">" + s[0] + "</button>").join("");
+$("segnaposto").addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  const campo = $("m-testo");
+  inserisci(campo, e.target.textContent);
+});
+function inserisci(campo, testo) {
+  campo.focus();
+  const a = campo.selectionStart || 0, b = campo.selectionEnd || 0;
+  campo.value = campo.value.slice(0, a) + testo + campo.value.slice(b);
+  campo.selectionStart = campo.selectionEnd = a + testo.length;
+}
+
+let MESSAGGIO_SALVATO = "";      // cosi' riconosco le modifiche non salvate
+async function caricaMessaggio() {
+  const d = await api("/api/messaggio");
+  const m = d.messaggio || {};
+  $("m-oggetto").value = VA(m.oggetto);
+  $("m-oggetto-1mese").value = VA(m.oggetto_1mese);
+  $("m-oggetto-10giorni").value = VA(m.oggetto_10giorni);
+  $("m-oggetto-1giorno").value = VA(m.oggetto_1giorno);
+  $("m-saluto").value = VA(m.saluto);
+  $("m-testo").value = VA(m.testo);
+  $("m-firma").value = VA(m.firma);
+  $("m-extra").value = VA(m.riga_extra_piede);
+  $("m-disiscrizione").value = VA(m.testo_disiscrizione);
+  MESSAGGIO_SALVATO = JSON.stringify(datiMessaggio());
+  CARICATE.messaggio = true;
+}
+function datiMessaggio() {
+  return {"messaggio": {
+    "oggetto": $("m-oggetto").value.trim(),
+    "oggetto_1mese": $("m-oggetto-1mese").value.trim(),
+    "oggetto_10giorni": $("m-oggetto-10giorni").value.trim(),
+    "oggetto_1giorno": $("m-oggetto-1giorno").value.trim(),
+    "saluto": $("m-saluto").value,
+    "testo": $("m-testo").value,
+    "firma": $("m-firma").value,
+    "riga_extra_piede": $("m-extra").value.trim(),
+    "testo_disiscrizione": $("m-disiscrizione").value.trim()
+  }};
+}
+$("b-salva-messaggio").addEventListener("click", async () => {
+  const r = await api("/api/messaggio", datiMessaggio());
+  if (r.errore) return avviso(r.errore, "rosso");
+  MESSAGGIO_SALVATO = JSON.stringify(datiMessaggio());
+  avviso("Messaggio salvato \u2714");
+});
+$("b-anteprima").addEventListener("click", async () => {
+  // l'ANTEPRIMA non salva piu': mostra il messaggio SALVATO
+  if (JSON.stringify(datiMessaggio()) !== MESSAGGIO_SALVATO) {
+    return avviso("Hai modifiche NON salvate: premi prima SALVA, poi ANTEPRIMA", "rosso");
+  }
+  const r = await api("/api/anteprima");      // GET: non tocca il config
+  if (r.errore) return avviso(r.errore, "rosso");
+  $("anteprima-oggetto").textContent = "Oggetto: " + r.oggetto;
+  $("anteprima-frame").srcdoc = r.html;
+  $("velo").classList.add("aperto");
+  avviso("Questa \u00e8 l'email vera, come la vedr\u00e0 il cliente");
+});
+$("b-chiudi").addEventListener("click", () => {
+  $("velo").classList.remove("aperto");
+  $("anteprima-frame").srcdoc = "";
+});
+
+// ------------------------------------------------------------------
+// IMPOSTAZIONI
+async function caricaImpostazioni() {
+  const d = await api("/api/messaggio");
+  const s = d.smtp || {}, c = d.centro || {}, p = d.prodotto || {};
+  $("i-mittente").value = VA(s.mittente);
+  $("i-host").value = VA(s.host);
+  $("i-porta").value = VA(s.porta);
+  $("i-provider").value = providerDaHost(s.host);
+  $("i-nome").value = VA(c.nome);
+  $("i-citta").value = VA(c.citta);
+  $("i-indirizzo").value = VA(c.indirizzo);
+  $("i-telefono").value = VA(c.telefono);
+  $("i-email").value = VA(c.email_contatti);
+  $("i-sito").value = VA(c.sito_web);
+  $("i-orari").value = VA(c.orari);
+  const colore = VA(c.colore_tema) || "#1F3B66";
+  $("i-colore").value = colore.length === 7 ? colore : "#1F3B66";
+  $("i-prodotto").value = VA(p.nome);
+  if (d.password_presente) {
+    $("i-password").placeholder = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022  (gi\u00e0 salvata)";
+    $("aiuto-password").textContent =
+      "La password \u00e8 gi\u00e0 salvata: lascia vuoto per mantenerla.";
+  } else {
+    $("i-password").placeholder = "es. abcd efgh ijkl mnop";
+  }
+  CARICATE.impostazioni = true;
+}
+$("b-occhio").addEventListener("click", () => {
+  const p = $("i-password");
+  p.type = p.type === "password" ? "text" : "password";
+});
+// menu dei provider email: scegli il nome, server+porta si scrivono soli
+const PROVIDER = {
+  "gmail":    ["smtp.gmail.com", "465"],
+  "outlook":  ["smtp.office365.com", "587"],
+  "libero":   ["smtp.libero.it", "465"],
+  "virgilio": ["smtp.virgilio.it", "465"],
+  "aruba":    ["smtp.aruba.it", "465"]
+};
+$("i-provider").addEventListener("change", () => {
+  const v = $("i-provider").value;
+  if (PROVIDER[v]) {
+    $("i-host").value = PROVIDER[v][0];
+    $("i-porta").value = PROVIDER[v][1];
+  } else if (v === "altro") {
+    $("i-host").value = "";
+    $("i-porta").value = "";
+    $("i-host").focus();
+  }
+});
+function providerDaHost(host) {
+  // pre-seleziona il menu dal server salvato (se lo riconosco)
+  const h = VA(host).toLowerCase();
+  if (!h) return "";
+  if (h.indexOf("gmail") >= 0) return "gmail";
+  if (h.indexOf("office365") >= 0 || h.indexOf("outlook") >= 0
+      || h.indexOf("hotmail") >= 0 || h.indexOf("live.") >= 0) return "outlook";
+  if (h.indexOf("libero") >= 0 || h.indexOf("iol.it") >= 0
+      || h.indexOf("inwind") >= 0) return "libero";
+  if (h.indexOf("virgilio") >= 0) return "virgilio";
+  if (h.indexOf("aruba") >= 0 || h.indexOf("technet") >= 0) return "aruba";
+  return "altro";
+}
+$("b-salva-impostazioni").addEventListener("click", async () => {
+  const password = $("i-password").value;
+  const r = await api("/api/impostazioni", {"smtp": {
+      "host": $("i-host").value.trim(),
+      "porta": $("i-porta").value.trim(),
+      "mittente": $("i-mittente").value.trim(),
+      "password_app": password          // vuota = resta quella salvata
+    }, "centro": {
+      "nome": $("i-nome").value.trim(),
+      "citta": $("i-citta").value.trim(),
+      "indirizzo": $("i-indirizzo").value.trim(),
+      "telefono": $("i-telefono").value.trim(),
+      "email_contatti": $("i-email").value.trim(),
+      "sito_web": $("i-sito").value.trim(),
+      "orari": $("i-orari").value.trim(),
+      "colore_tema": $("i-colore").value
+    }, "prodotto": {"nome": $("i-prodotto").value.trim()}});
+  if (r.errore) return avviso(r.errore, "rosso");
+  $("i-password").value = "";
+  avviso("Impostazioni salvate \u2714");
+  caricaStato();
+  CARICATE.impostazioni = false;
+  caricaImpostazioni();
+});
+
+// ------------------------------------------------------------------
+// AZIONI (prova / invio / controllo) con avanzamento live:
+// puoi FERMARE l'azione o CHIUDERE la finestra del risultato (durante e
+// DOPO il lavoro: resta visibile finche' non la chiudi tu)
+let sondaggio = null;
+const BOTTONI_AZIONE = ["b-prova", "b-invia", "b-controllo"];
+function impostaBottoni(disabilita) {
+  BOTTONI_AZIONE.forEach(id => $(id).disabled = disabilita);
+}
+function bottoneChiudi(term) {
+  return term === "uscita-controllo" ? "b-chiudi-controllo" : "b-chiudi-uscita";
+}
+async function azione(tipo, conferma, term, gira) {
+  const uscita = $(term || "uscita");
+  const giratore = $(gira || "giratore");
+  const chiudi = $(bottoneChiudi(term));
+  if (conferma && !(await chiediConferma(conferma))) return;
+  const r = await api("/api/azione", {"tipo": tipo});
+  if (!r.ok) return avviso(r.messaggio || "Non posso avviare", "rosso");
+  uscita.style.display = "block";
+  uscita.textContent = "";
+  giratore.style.display = "block";
+  chiudi.classList.remove("nascosto");
+  impostaBottoni(true);
+  $("b-ferma").classList.remove("nascosto");
+  sondaggio = setInterval(async () => {
+    const s = await api("/api/azione-stato");
+    if (s.righe && s.righe.length) {
+      uscita.textContent = s.righe.join("\n");
+      uscita.scrollTop = uscita.scrollHeight;
+    }
+    if (s.finito) {
+      clearInterval(sondaggio);
+      sondaggio = null;
+      giratore.style.display = "none";
+      impostaBottoni(false);
+      $("b-ferma").classList.add("nascosto");
+      // il pulsante CHIUDI resta visibile anche a lavoro finito: e'
+      // il centro che decide quando togliere il risultato dallo schermo
+      if (s.fermata) avviso("Azione fermata \u26d4", "rosso");
+      else if (s.codice === 0) avviso("Finito \u2714");
+      else avviso("Finito con ERRORI (codice " + s.codice + ")", "rosso");
+      caricaStato();
+    }
+  }, 900);
+}
+$("b-prova").addEventListener("click", () =>
+  azione("prova", "Provo senza mandare NIENTE. Procedo?"));
+$("b-invia").addEventListener("click", () =>
+  azione("invio", "Partiranno le email VERE ai clienti in finestra di invio.\nProcedo?"));
+$("b-controllo").addEventListener("click", () =>
+  azione("controllo", null, "uscita-controllo", "giratore-controllo"));
+$("b-ferma").addEventListener("click", async () => {
+  if (!(await chiediConferma("Fermo davvero l'azione in corso?",
+                             "SÌ, FERMA"))) return;
+  const r = await api("/api/azione-ferma", {});
+  if (r.ok) avviso("Sto fermando: qualche secondo ed \u00e8 fatta", "rosso");
+  else avviso(r.messaggio || "Non posso fermarla", "rosso");
+});
+$("b-chiudi-uscita").addEventListener("click", () => {
+  $("uscita").style.display = "none";
+  $("giratore").style.display = "none";
+  $("b-chiudi-uscita").classList.add("nascosto");
+});
+$("b-chiudi-controllo").addEventListener("click", () => {
+  $("uscita-controllo").style.display = "none";
+  $("giratore-controllo").style.display = "none";
+  $("b-chiudi-controllo").classList.add("nascosto");
+});
+
+$("b-apri-excel").addEventListener("click", async () => {
+  const r = await api("/api/apri-excel", {});
+  if (!r.ok) avviso(r.messaggio || "Non riesco ad aprire l'Excel", "rosso");
+});
+
+// ------------------------------------------------------------------
+// CLIENTI (aggiungi / modifica / SÌ-NO con un clic) + CERCA
+let CLIENTI = [];
+let FILTRO_CLIENTI = "";
+async function caricaClienti() {
+  const d = await api("/api/clienti");
+  if (d.errore) {
+    CLIENTI = [];
+    FILTRO_CLIENTI = "";
+    $("k-cerca").value = "";
+    $("b-tutti-clienti").classList.add("nascosto");
+    $("desc-elenco").textContent = "";
+    $("tabella-clienti").innerHTML = '<p class="desc">' + esc(d.errore) + "</p>";
+    return;
+  }
+  CLIENTI = d.clienti || [];
+  disegnaClienti();
+}
+function disegnaClienti() {
+  const f = FILTRO_CLIENTI.toLowerCase();
+  const vedi = f ? CLIENTI.filter(x =>
+    (VA(x.nome) + " " + VA(x.targa) + " " + VA(x.email)).toLowerCase().includes(f))
+    : CLIENTI;
+  $("b-tutti-clienti").classList.toggle("nascosto", !f);
+  if (!CLIENTI.length) {
+    $("desc-elenco").textContent = "Nessun cliente: premi ➕ NUOVO CLIENTE per " +
+      "iniziare (il file lo creo io, con copia di sicurezza automatica).";
+    $("tabella-clienti").innerHTML = "";
+    return;
+  }
+  $("desc-elenco").textContent = f
+    ? vedi.length + " risultati per \u201c" + FILTRO_CLIENTI + "\u201d su " +
+      CLIENTI.length + " clienti."
+    : "Tutti i " + CLIENTI.length + " clienti. Tocca SÌ/NO per cambiare: " +
+      "il colore si mette da solo.";
+  $("tabella-clienti").innerHTML = vedi.length ? tabella(
+    ["Nome", "Targa", "Email", "Scadenza", "Revisione fatta", "Attivo", ""],
+    vedi.map(x => {
+      const riga = x.riga;
+      const bFatta = '<button class="badge ' + (x.fatta ? "si" : "no") +
+        '" data-fatta="' + riga + '" title="Revisione fatta: SÌ = le email ' +
+        'per questa targa si fermano. Tocca per cambiare.">' +
+        (x.fatta ? "S\u00cc" : "NO") + "</button>";
+      const bAttivo = x.attivo === "STOP"
+        ? '<span class="badge stop" title="Il cliente ha risposto STOP ' +
+          'all\u2019email">STOP</span>'
+        : '<button class="badge ' + (x.attivo === "SI" ? "si" : "no") +
+          '" data-attivo="' + riga + '" title="Tocca per cambiare">' +
+          (x.attivo === "SI" ? "S\u00cc" : "NO") + "</button>";
+      const azioni = '<button class="bottone piccolo grigio" data-modifica="' +
+          riga + '">✏️ Modifica</button>' +
+        '<button class="bottone piccolo rosso" data-elimina="' + riga +
+          '" title="Toglie il cliente dal file Excel: le righe sotto salgono di un posto (nessun buco). Prima una conferma, e il programma fa da solo una copia di sicurezza.">🗑 Elimina</button>' +
+        (x.attivo === "STOP" ? '<button class="bottone piccolo" data-riattiva="' +
+          riga + '">Riattiva</button>' : "");
+      return [esc(x.nome), "<b>" + esc(x.targa) + "</b>", esc(x.email),
+              esc(x.scadenza), bFatta, bAttivo, azioni];
+    }), [4, 5]
+  ) : '<p class="desc">Nessun cliente con questa ricerca: controlla come ' +
+      'scritto, oppure premi ✖ Mostra tutto.</p>';
+  fissaAltezza($("tabella-clienti"),
+               righeAttuali("k-righe", "revmemo_righe_clienti"));
+}
+$("k-righe").addEventListener("change", () => {
+  memScrivi("revmemo_righe_clienti", $("k-righe").value);
+  fissaAltezza($("tabella-clienti"), Number($("k-righe").value) || 20);
+});
+$("b-cerca-clienti").addEventListener("click", () => {
+  FILTRO_CLIENTI = $("k-cerca").value.trim();
+  disegnaClienti();
+});
+$("k-cerca").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    FILTRO_CLIENTI = $("k-cerca").value.trim();
+    disegnaClienti();
+  }
+});
+$("b-tutti-clienti").addEventListener("click", () => {
+  $("k-cerca").value = "";
+  FILTRO_CLIENTI = "";
+  disegnaClienti();
+});
+function trovaCliente(riga) {
+  return CLIENTI.find(x => String(x.riga) === String(riga)) || {};
+}
+$("tabella-clienti").addEventListener("click", async e => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.dataset.modifica) return apriModifica(t.dataset.modifica);
+  if (t.dataset.elimina) {
+    const x = trovaCliente(t.dataset.elimina);
+    if (!(await chiediConferma("Elimino davvero " + (x.nome || "il cliente") +
+        " (" + x.targa + ")? Sparisce dal file Excel e non riceverà più " +
+        "promemoria.", "SÌ, ELIMINA"))) return;
+    const r = await api("/api/cliente/elimina",
+                        {"riga": Number(t.dataset.elimina)});
+    if (r.errore) return avviso(r.errore, "rosso");
+    avviso("Cliente eliminato \u2714");
+    return caricaClienti();
+  }
+  if (t.dataset.riattiva) {
+    const x = trovaCliente(t.dataset.riattiva);
+    if (!(await chiediConferma("Riattivo " + (x.nome || "il cliente") +
+        " (" + x.targa + ")? Ripartono i promemoria.", "SÌ, RIATTIVA"))) return;
+    return cambiaStato(t.dataset.riattiva, "attivo", "S\u00cc");
+  }
+  if (t.dataset.fatta) {
+    const x = trovaCliente(t.dataset.fatta);
+    const nuovo = x.fatta ? "NO" : "S\u00cc";
+    if (nuovo === "S\u00cc" && !(await chiediConferma("Revisione FATTA per " +
+        x.targa + "? Le email per questa targa si fermano.", "SÌ, FATTA"))) return;
+    return cambiaStato(t.dataset.fatta, "fatta", nuovo);
+  }
+  if (t.dataset.attivo) {
+    const x = trovaCliente(t.dataset.attivo);
+    const nuovo = x.attivo === "SI" ? "NO" : "S\u00cc";
+    if (nuovo === "NO" && !(await chiediConferma("Metto in pausa " + x.targa +
+        "? Non riceve più promemoria finché non lo riattivi.", "SÌ, PAUSA"))) return;
+    return cambiaStato(t.dataset.attivo, "attivo", nuovo);
+  }
+});
+async function cambiaStato(riga, campo, valore) {
+  const r = await api("/api/cliente/stato",
+                      {"riga": Number(riga), "campo": campo, "valore": valore});
+  if (r.errore) return avviso(r.errore, "rosso");
+  avviso("Fatto \u2714");
+  caricaClienti();
+}
+function apriNuovo() {
+  $("titolo-cliente").textContent = "Nuovo cliente";
+  $("c-riga").value = "";
+  ["c-nome", "c-targa", "c-email", "c-telefono", "c-scadenza"].forEach(
+    id => $(id).value = "");
+  $("velo-cliente").classList.add("aperto");
+  $("c-nome").focus();
+}
+function apriModifica(riga) {
+  const x = trovaCliente(riga);
+  $("titolo-cliente").textContent = "Modifica cliente" +
+    (x.targa ? " — " + x.targa : "");
+  $("c-riga").value = riga;
+  $("c-nome").value = VA(x.nome);
+  $("c-email").value = VA(x.email);
+  $("c-telefono").value = VA(x.telefono);
+  $("c-targa").value = VA(x.targa);
+  $("c-scadenza").value = VA(x.scadenza);
+  $("velo-cliente").classList.add("aperto");
+}
+async function salvaCliente() {
+  const corpo = {
+    "riga": Number($("c-riga").value || 0),
+    "nome": $("c-nome").value.trim(),
+    "email": $("c-email").value.trim(),
+    "telefono": $("c-telefono").value.trim(),
+    "targa": $("c-targa").value.trim().toUpperCase(),
+    "scadenza": $("c-scadenza").value.trim()
+  };
+  const modifica = corpo.riga > 0;
+  const r = await api(modifica ? "/api/cliente/modifica" : "/api/cliente/nuovo",
+                      corpo);
+  if (r.errore) return avviso(r.errore, "rosso");
+  $("velo-cliente").classList.remove("aperto");
+  if (modifica && r.fatta_reset) {
+    avviso("Cliente aggiornato \u2714 (scadenza nuova: revisione fatta " +
+           "è tornata NO da sola)");
+  } else {
+    avviso(modifica ? "Cliente aggiornato \u2714" : "Cliente aggiunto \u2714");
+  }
+  caricaClienti();
+}
+$("b-nuovo-cliente").addEventListener("click", apriNuovo);
+$("b-annulla-cliente").addEventListener("click", () =>
+  $("velo-cliente").classList.remove("aperto"));
+$("b-salva-cliente").addEventListener("click", salvaCliente);
+$("velo-cliente").addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.tagName === "INPUT") salvaCliente();
+  if (e.key === "Escape") $("velo-cliente").classList.remove("aperto");
+});
+
+// ------------------------------------------------------------------
+// REGISTRO (con CERCA)
+let REGISTRO = [];
+let FILTRO_REGISTRO = "";
+async function caricaRegistro() {
+  const d = await api("/api/registro");
+  REGISTRO = d.righe || [];
+  disegnaRegistro();
+}
+function disegnaStatistiche(st) {
+  const dove = $("stat-invi");
+  if (!dove) return;
+  if (!st || !st.mesi || !st.mesi.length) {
+    dove.innerHTML = '<p class="desc">Le statistiche appaiono dopo il ' +
+      'primo INVIA ORA.</p>';
+    return;
+  }
+  const max = Math.max(1, ...st.mesi.map(m => Number(m.quanti) || 0));
+  const colonne = st.mesi.map((m, i) => {
+    const q = Number(m.quanti) || 0;
+    const h = q ? Math.max(8, Math.round(q / max * 100)) : 4;
+    return '<div class="col-stat">' +
+      '<div class="num-stat">' + (q ? q : "&nbsp;") + "</div>" +
+      '<div class="barra-stat' + (q ? "" : " vuota") +
+      (i === st.mesi.length - 1 ? " attuale" : "") +
+      '" style="height:' + h + '%" title="' + q + ' promemoria a ' +
+      esc(m.etichetta) + '"></div>' +
+      '<div class="lbl-stat">' + esc(m.etichetta) + "</div></div>";
+  }).join("");
+  dove.innerHTML = '<div class="barre-stat">' + colonne + "</div>" +
+    '<p class="desc" style="margin-bottom:0">Questo mese: <b>' +
+    VA(st.questo_mese) + "</b> &nbsp;•&nbsp; Totale da quando usi il " +
+    'pannello: <b>' + VA(st.totale) + "</b> promemoria</p>";
+}
+$("b-esp-registro").addEventListener("click", async () => {
+  const r = await api("/api/registro-excel", {});
+  if (r.ok) avviso(r.messaggio || "Registro esportato \u2714");
+  else avviso(r.messaggio || r.errore || "Esportazione non riuscita", "rosso");
+});
+function disegnaRegistro() {
+  const tipoLbl = {"30": "30 giorni", "10": "10 giorni", "1": "1 giorno"};
+  const f = FILTRO_REGISTRO.toLowerCase();
+  const vedi = f ? REGISTRO.filter(x =>
+    (VA(x.email) + " " + VA(x.targa) + " " + VA(x.data) + " " +
+     VA(x.scadenza) + " " + VA(tipoLbl[x.tipo])).toLowerCase().includes(f))
+    : REGISTRO;
+  $("b-tutti-registro").classList.toggle("nascosto", !f);
+  $("tabella-registro").innerHTML = vedi.length
+    ? tabella(["Data", "Cliente (email)", "Targa", "Promemoria", "Scadenza"],
+      vedi.map(x => [formattaData(x.data), esc(x.email),
+        "<b>" + esc(x.targa) + "</b>",
+        esc(tipoLbl[x.tipo] || x.tipo), formattaData(x.scadenza)]))
+    : (REGISTRO.length
+      ? '<p class="desc">Nessun promemoria con questa ricerca: premi ' +
+        '\u2716 Mostra tutto per tornare all\u2019elenco.</p>'
+      : '<p class="desc">Nessun promemoria inviato finora: dopo il primo ' +
+        'INVIA ORA qui trovi l\u2019elenco.</p>');
+  fissaAltezza($("tabella-registro"),
+               righeAttuali("r-righe", "revmemo_righe_registro"));
+}
+$("r-righe").addEventListener("change", () => {
+  memScrivi("revmemo_righe_registro", $("r-righe").value);
+  fissaAltezza($("tabella-registro"), Number($("r-righe").value) || 20);
+});
+$("b-cerca-registro").addEventListener("click", () => {
+  FILTRO_REGISTRO = $("r-cerca").value.trim();
+  disegnaRegistro();
+});
+$("r-cerca").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    FILTRO_REGISTRO = $("r-cerca").value.trim();
+    disegnaRegistro();
+  }
+});
+$("b-tutti-registro").addEventListener("click", () => {
+  $("r-cerca").value = "";
+  FILTRO_REGISTRO = "";
+  disegnaRegistro();
+});
+
+// ------------------------------------------------------------------
+// via!
+caricaStato();
+</script>
+
+</body>
+</html>
