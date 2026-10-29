@@ -825,3 +825,108 @@ Cliente: "ok metti tutto su github così non perdo nulla".
   dist/RevMemo_v4.zip.
 - Commit + tag v4.13 + push su GitHub; consegna al cliente via temp.sh
   con sha256 e verifica post-download.
+
+## 2026-10-30 — seconda recensione esterna (sulla v4.13): verificata riga per riga
+- Il recensore questa volta ha guardato il codice vero (v4.13 su
+  GitHub: main 1881e5e, tag v4.13, zip consegnato). Descrizione dei
+  difetti in gran parte corretta: intestazione motore ancora
+  "versione 4.4 (PRO)" (vera, cosmetica); serratura Excel solo nel
+  pannello (vera, gia' segnalata da noi prima dell'ok); PID scritto ma
+  non letto dal motore (vera a livello motore; il pannello LO LEGGE
+  gia' con _pid_vivo/_libera_blocco_orfano); log letto tutto lineare e
+  senza rotazione (vera ma teorica: millisecondi anche con decine di
+  migliaia di righe); SMS predisposto (vera, sezione [sms] nel config);
+  limiti IMAP e sicurezza locale = limiti noti dichiarati (d'accordo).
+- ERRATE/stanti nella recensione: "backup prima delle modifiche dal
+  pannello gia' parziale" -> e' GIA' COMPLETO (r.backup_excel dentro
+  _carica_per_scrittura, ogni scrittura, dal v4.11); "config multiriga
+  -> messaggio generico" -> il messaggio chiaro e' gia' dentro
+  (carica_config, ParsingError).
+- Snippet del recensore NON adottabili cosi' com'erano:
+  1) BloccoInvio proposto: os.open(O_EXCL) -> close -> riscrittura in
+     due passi (_scrivi) -> finestra con lock VUOTO: un secondo
+     processo legge JSON rotto, lo cancella e lo riprende -> DOPPIO
+     INVIO (il difetto stesso che vuole curare). In piu' heartbeat
+     riscrive il file non atomicamente e _processo_vivo scambia un
+     processo vivo di altro utente per morto. Idea giusta (PID+atexit+
+     battito), esecuzione peggiore della v4.13 che scrive il PID con
+     fdopen SULLA STESSA apertura O_EXCL.
+  2) gia_inviato riscritta: condizione doppia ridondante (chiave senza
+     lower confrontata con la riga grezza: la targa maiuscola la rende
+     quasi sempre vera) + copia identica della nostra regola di fondo;
+     nessun guadagno reale. Rotazione log: idea sensata -> lista
+     futuro (archivio con nome univoco, append, conservare >= 45 gg).
+  3) VERSIONE unica: idea giusta e quasi gratis (pannello importa gia'
+     il motore); numero "4.14" proposto senza coordinamento.
+  4) _multiriga_robusta: NON puo' funzionare: il ParsingError avviene
+     dentro cfg.read PRIMA che qualsiasi funzione sui valori venga
+     chiamata. Tolleranza vera = pre-trattare il testo del file;
+     scelta sconsigliata (riparazioni silenziose di config rotti,
+     rischio testi sbagliati nelle email).
+- Stato repo ricontrollato: il push v4.13 ERA avvenuto; l'"ahead 1"
+  locale era solo il riferimento remoto non aggiornato (fetch ->
+  allineato, main = 1881e5e). Tag v4.13 presente sul remoto.
+  Token VECCHIO ANCORA ATTIVO (200 sulle API): da sollecitare revoca;
+  per i prossimi push servira' un token nuovo.
+- Proposta v4.14 al cliente (in attesa di ok): (a) costante VERSIONE
+  unica + intestazione corretta; (b) il motore legge il PID del lock e
+  verifica che sia vivo prima di riprendersi un lock vecchio;
+  (c) opzionale piu' corposo: serratura comune pannello<->motore sul
+  file Excel; (d) futuro: rotazione log, script attivita' pianificata,
+  export/import clienti. Nessuna emergenza: la v4.13 consegnata resta
+  solida.
+
+## 2026-10-30 — v4.14 realizzata (ok cliente: "ok procedi e fai
+## attenzione a tutto. verifica e testa")
+- SCOPE approvato: (a) VERSIONE unica, (b) BloccoInvio con controllo
+  del vivo, (c) serratura condivisa pannello<->motore sul file clienti.
+  (d) resta per il futuro. I 4 snippet del recensore NON copiati: la
+  loro serratura creava il file lock VUOTO e scriveva dopo (finestra di
+  doppio invio); la nostra scrive il PID nell'apertura stessa.
+- (a) revmemo.py: VERSIONE = "4.14" dopo BASE (UN solo posto); header
+  "versione 4.14 (PRO)" (prima "4.4 (PRO)"); banner main():
+  "RevMemo v4.14 - Promemoria revisioni".
+- (b) revmemo.py: _pid_vivo (ctypes STILL_ACTIVE su Windows, os.kill su
+  POSIX, PermissionError = vivo) e _leggi_pid_lock; BloccoInvio.prendi:
+  pid vivo -> return False MAI rubato (anche oltre i 15 minuti); pid
+  morto -> ripreso SUBITO (prima: attesa fissa 15 min); pid illeggibile
+  -> regola dei 15 minuti. Messaggio main(): "riprova tra qualche
+  minuto" (gli orfani non aspettano piu' 15 minuti).
+- (c) revmemo.py: SerraturaExcel (excel.lock, O_EXCL, PID, attesa
+  configurabile 15s default, orfani ripresi subito, scaduta 120s solo
+  per pid illeggibile) + salva_excel_sicuro (salvataggio atomico:
+  provvisorio + os.replace; controllo preventivo open("ab") per
+  mantenere ESATTAMENTE il vecchio comportamento su PermissionError =
+  Excel aperto / chmod 444). Avvolte sotto serratura: segna_stop_nel_
+  excel (wrapper + _segna_stop_serrato), migliora_excel (wrapper +
+  _migliora_excel_serrato). crea_excel_se_manca VOLUTAMENTE senza
+  serratura (si chiama solo se il file manca; il pannello la chiama
+  MENTRE tiene la serratura -> auto-deadlock evitato; la gara di
+  creazione e' benigna, contenuto identico).
+  pannello.py: ERRORE_EXCEL_OCCUPATO + _serratura_file_clienti()
+  (contextmanager, attesa 10s, rende "" o messaggio); le 4 scritture
+  (nuovo/modifica/elimina/stato) ora "with SERRATURA_EXCEL,
+  _serratura_file_clienti() as occupato" (ordine costante: threading
+  fuori, file dentro = nessun deadlock); _salva_excel e la pulizia
+  esempi usano salva_excel_sicuro del motore.
+- TEST: scripts/test_v414.py (nuovo, 39 controlli): 39/39 VERDI
+  (versione, pid vivo/morto, blocco non rubato a vivo + ripreso subito
+  da morto, serratura occupata/libera/orfana, atomicita', Permission-
+  Error invariato, STOP vero sotto serratura, pannello agganciato).
+  Un difetto nel TEST (file riusato in sez. F) corretto: il banco non
+  il programma.
+- Suite complete su REVMEMO_PKG=download/RevMemo: test_pannello 151/151
+  (primo giro 150/151: __pycache__ creato da py_compile mio -> pulito,
+  rifatto 151/151); test_correzioni_v413 55/55; test_blocco_orfano
+  9/9; v43 42/42; v44 52/52; gen26 OK; verifica_html_v48 SUPERATA;
+  v4 51+2, v41 31+2, v42 20+2 (le stesse 2 pre-esistenti della v4.13:
+  pacchetto di sviluppo con i file dentro). py_compile OK (pacchetto
+  ripulito da __pycache__ dopo).
+- LEGGIMI.txt (repo + pacchetto live): sezione NOVITA' v4.14 inserita
+  sopra la v4.13 via scripts/inserisci_novita_v414.py, CRLF preservato.
+  README.md: versione attuale v4.14 con l'elenco. Nessuna foto nuova:
+  l'interfaccia del pannello non cambia (tutto gira sotto il cofano).
+- ZIP ricostruito con scripts/ricrea_zip_revmemo_v45.py -> download/
+  RevMemo_v4.zip; copie: dist/RevMemo_v4.zip + download/RevMemo_v4_14.zip.
+- Commit + tag v4.14 + push su GitHub (token VECCHIO ancora attivo:
+  cliente sollecitato alla revoca); consegna via temp.sh con sha256.

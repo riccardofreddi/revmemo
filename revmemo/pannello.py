@@ -28,6 +28,7 @@ import sys
 import threading
 import time
 import webbrowser
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -741,7 +742,30 @@ def apri_excel():
 # =====================================================================
 ERRORE_EXCEL_APERTO = ("Il file Excel risulta APERTO: salvalo (Ctrl+S), "
                        "chiudi Excel, aspetta qualche secondo e riprova.")
+ERRORE_EXCEL_OCCUPATO = ("Il file clienti e' occupato da un'altra scrittura "
+                         "(forse un invio in corso?): riprova tra qualche "
+                         "secondo.")
 LIMITE_RIGA = 300          # come le tendine e i colori del file
+
+
+@contextmanager
+def _serratura_file_clienti():
+    """La serratura CONDIVISA col motore (revmemo.SerraturaExcel): mentre
+    un invio scrive gli STOP, il pannello non salva clienti e viceversa
+    (prima la serratura interna qui sopra tiene in fila solo i thread del
+    pannello). Rende '' se presa, il messaggio d'errore se occupata."""
+    try:
+        serratura = motore().SerraturaExcel(attesa=10)
+    except Exception:
+        yield ""                     # motore non disponibile: come prima
+        return
+    if not serratura.prendi():
+        yield ERRORE_EXCEL_OCCUPATO
+        return
+    try:
+        yield ""
+    finally:
+        serratura.rilascia()
 
 
 def _valida_cliente(dati):
@@ -801,7 +825,7 @@ def _carica_per_scrittura():
 
 def _salva_excel(wb):
     try:
-        wb.save(PERCORSO_EXCEL)
+        motore().salva_excel_sicuro(wb, PERCORSO_EXCEL)
     except PermissionError:
         return ERRORE_EXCEL_APERTO
     except Exception as e:
@@ -903,7 +927,9 @@ def nuovo_cliente(dati):
     if errore:
         return {"errore": errore}
     r = motore()
-    with SERRATURA_EXCEL:
+    with SERRATURA_EXCEL, _serratura_file_clienti() as occupato:
+        if occupato:
+            return {"errore": occupato}
         creato = False
         if not os.path.exists(PERCORSO_EXCEL):
             try:
@@ -920,7 +946,7 @@ def nuovo_cliente(dati):
                                  r.RIGA_INTESTAZIONI + 9):
                     for col in range(2, 9):
                         wse.cell(row=row, column=col).value = None
-                wbe.save(PERCORSO_EXCEL)
+                r.salva_excel_sicuro(wbe, PERCORSO_EXCEL)
             except Exception:
                 pass
         wb, ws, colonna_di, errore = _carica_per_scrittura()
@@ -954,7 +980,9 @@ def modifica_cliente(dati):
     campi, errore = _valida_cliente(dati)
     if errore:
         return {"errore": errore}
-    with SERRATURA_EXCEL:
+    with SERRATURA_EXCEL, _serratura_file_clienti() as occupato:
+        if occupato:
+            return {"errore": occupato}
         wb, ws, colonna_di, errore = _carica_per_scrittura()
         if errore:
             return {"errore": errore}
@@ -1002,7 +1030,9 @@ def elimina_cliente(dati):
         return {"errore": "Riga non valida."}
     if riga < r.RIGA_INTESTAZIONI + 1 or riga > LIMITE_RIGA:
         return {"errore": "Riga non valida (5-300)."}
-    with SERRATURA_EXCEL:
+    with SERRATURA_EXCEL, _serratura_file_clienti() as occupato:
+        if occupato:
+            return {"errore": occupato}
         wb, ws, colonna_di, errore = _carica_per_scrittura()
         if errore:
             return {"errore": errore}
@@ -1057,7 +1087,9 @@ def stato_cliente(dati):
         return {"errore": "Valore non valido: ammessi solo S\u00cc e NO."}
     if riga < r.RIGA_INTESTAZIONI + 1 or riga > LIMITE_RIGA:
         return {"errore": "Riga non valida (5-300)."}
-    with SERRATURA_EXCEL:
+    with SERRATURA_EXCEL, _serratura_file_clienti() as occupato:
+        if occupato:
+            return {"errore": occupato}
         wb, ws, colonna_di, errore = _carica_per_scrittura()
         if errore:
             return {"errore": errore}

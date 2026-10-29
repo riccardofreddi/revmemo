@@ -10,14 +10,39 @@ sul computer del centro.
 | Cartella | Contenuto |
 |---|---|
 | `revmemo/` | Il pacchetto completo pronto da installare: pannello (`pannello.py` + `pannello.html`), motore (`revmemo.py`), runtime Windows Python 3.12.8 incorporato con openpyxl 3.1.5, guide (`LEGGIMI.txt`, `ISTRUZIONI_CENTRO.md`, `GUIDA_INSTALLATORE.md`) |
-| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.13); `archivio/` = versioni precedenti |
+| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.14); `archivio/` = versioni precedenti |
 | `scripts/` | Strumenti di sviluppo: suite di test `test_pannello.py` (151 controlli) e `test_correzioni_v413.py` (55 controlli), script per ricostruire lo ZIP (`ricrea_zip_revmemo_v45.py`), verifiche HTML, harness fotografici |
 | `scripts/revmemo_build/` | Asset per ricostruire il runtime incorporato (python_embed.zip + wheel openpyxl) |
 | `foto/` | Schermate di verifica del pannello, versione per versione |
 | `archivio/` | Progetti precedenti (`promemoria-revisioni`, la prima versione senza pannello) |
 | `worklog.md` | Diario di sviluppo: ogni versione con richieste, scelte, test e verifiche |
 
-## Versione attuale: v4.13 (2026-10-30)
+## Versione attuale: v4.14 (2026-10-30)
+
+- **Serratura condivisa del file clienti**: pannello e motore (processi
+  separati) salvano il file Excel UNO ALLA VOLTA (`excel.lock`, PID del
+  proprietario; a un processo vivo non si ruba mai, uno morto si riprende
+  subito). Prima il pannello teneva in fila solo i suoi thread: un invio
+  automatico poteva sovrapporsi a un salvataggio del pannello.
+- **Salvataggio atomico** (`salva_excel_sicuro`): prima il file nuovo su
+  un provvisorio, poi lo scambio — chi legge nel frattempo vede il file
+  vecchio o quello nuovo, mai uno scritto a metà. PermissionError (Excel
+  aperto) invariato, così i messaggi e i test restano gli stessi.
+- **Blocco anti-doppio-invio con controllo del vivo**: prima di riprendersi
+  un blocco vecchio, il motore legge il PID e verifica che il processo sia
+  morto; un invio lento ma vivo non viene MAI rubato (anche oltre i 15
+  minuti), un blocco orfano si libera SUBITO (prima: attesa fissa 15 min).
+- **Versione unica**: costante `VERSIONE = "4.14"` in `revmemo.py`, usata
+  nell'intestazione e nel banner di avvio (l'intestazione diceva ancora
+  "versione 4.4 (PRO)"); il pannello la legge dal motore.
+- **Messaggi più chiari**: file clienti occupato → "riprova tra qualche
+  secondo" (pannello) / avvisi dedicati per STOP e colora Excel.
+- Test: **test_v414.py 39/39 (nuovo)** + **151/151 pannello + 55/55
+  correzioni + 9/9 blocco orfano + v43 42/42 + v44 52/52**; v4/v41/v42 con
+  le solite 2 verifiche pre-esistenti (pacchetto di sviluppo con config.ini
+  dentro, non è quello dello ZIP)
+
+### v4.13 (2026-10-30)
 
 - **Pannello più sicuro**: chiave di sessione + controllo Host/Origin — una
   pagina web qualsiasi aperta nel browser non può più comandare il pannello

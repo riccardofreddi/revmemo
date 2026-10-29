@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 =====================================================================
- RevMemo - Promemoria revisioni automatici      versione 4.4 (PRO)
+ RevMemo - Promemoria revisioni automatici      versione 4.14 (PRO)
 =====================================================================
 Cosa fa:
  - Legge i clienti dal file Excel (clienti_revisioni.xlsx; se manca,
@@ -77,6 +77,10 @@ except Exception:
     pass
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+
+# LA versione del programma in UN SOLO POSTO: chi vuole mostrarla (pannello,
+# riepilogo, test) la legge da qui, cosi' non puo' mai essere diversa.
+VERSIONE = "4.14"
 
 # Se c'e' il runtime incluso e NON lo stiamo usando, ripartiamo con quello:
 # cosi' il Python installato sul PC non conta piu' (zero problemi di versione).
@@ -938,8 +942,26 @@ def segna_stop_nel_excel(percorso_excel, email_mittente, esito=None):
     """Scrive STOP nella colonna Attivo di tutte le righe di quel cliente.
     Ritorna [(riga, nome, targa), ...] delle righe aggiornate ([] = niente).
     Se si passa un dizionario 'esito', in caso di ERRORE (Excel aperto,
-    file illeggibile) ci scrive esito["errore"] = True: cosi' chi chiama
-    distingue 'era gia' in pausa' da 'non sono riuscito a scrivere'."""
+    file illeggibile, file occupato) ci scrive esito["errore"] = True:
+    cosi' chi chiama distingue 'era gia' in pausa' da 'non sono riuscito
+    a scrivere'. La scrittura avviene sotto la serratura condivisa col
+    pannello: niente salvataggi nello stesso istante."""
+    serratura = SerraturaExcel()
+    if not serratura.prendi():
+        if esito is None:
+            esito = {}
+        esito["errore"] = True
+        print("  ATTENZIONE: il file clienti e' occupato da un'altra scrittura")
+        print("  (pannello?): lo STOP verra' registrato al prossimo giro.")
+        return []
+    try:
+        return _segna_stop_serrato(percorso_excel, email_mittente, esito)
+    finally:
+        serratura.rilascia()
+
+
+def _segna_stop_serrato(percorso_excel, email_mittente, esito=None):
+    """(la scrittura STOP vera, sotto serratura)"""
     if esito is None:
         esito = {}
     try:
@@ -976,7 +998,7 @@ def segna_stop_nel_excel(percorso_excel, email_mittente, esito=None):
                             str(nome).strip() if nome else "",
                             str(targa).strip().upper() if targa else ""))
         if toccate:
-            wb.save(percorso_excel)
+            salva_excel_sicuro(wb, percorso_excel)
             for _, _, targa in toccate:
                 registra_invio(email_mittente, targa, "STOP", 0,
                                "risposta STOP registrata", "-")
@@ -1769,7 +1791,7 @@ def crea_excel_se_manca(percorso_excel):
             ws.cell(row=r, column=6).number_format = "@"
 
         ws.freeze_panes = "A5"
-        wb.save(percorso_excel)
+        salva_excel_sicuro(wb, percorso_excel)
         print(f"File clienti non trovato: l'ho creato con 8 clienti di esempio "
               f"({os.path.basename(percorso_excel)}).")
         print("Aprilolo, cancella gli esempi e scrivi i tuoi clienti dalla riga 5.\n")
@@ -1782,7 +1804,21 @@ def migliora_excel(percorso_excel):
     """Mette (o aggiorna) i colori in un file Excel GIA' esistente senza
     toccare i dati: celle SÌ verde, NO rosso, STOP rosso scuro, tendina
     SÌ/NO (STOP non e' un'opzione del menu) e colonna Scadenza in formato
-    testo. Serve per i file creati con le versioni vecchie del programma."""
+    testo. Serve per i file creati con le versioni vecchie del programma.
+    Sotto la serratura condivisa col pannello: niente colori a meta'."""
+    serratura = SerraturaExcel()
+    if not serratura.prendi():
+        print("ERRORE: il file clienti e' occupato da un'altra scrittura (pannello?).")
+        print("Riprova colora_excel.bat tra qualche secondo.")
+        return False
+    try:
+        return _migliora_excel_serrato(percorso_excel)
+    finally:
+        serratura.rilascia()
+
+
+def _migliora_excel_serrato(percorso_excel):
+    """(i colori veri, sotto serratura)"""
     if not os.path.exists(percorso_excel):
         print(f"ERRORE: non trovo il file Excel: {percorso_excel}")
         return False
@@ -1865,7 +1901,7 @@ def migliora_excel(percorso_excel):
             ws.column_dimensions[lettera].width = larghezza
 
     try:
-        wb.save(percorso_excel)
+        salva_excel_sicuro(wb, percorso_excel)
     except PermissionError:
         print("ERRORE: il file Excel risulta APERTO: non posso salvarlo.")
         print("Chiudi Excel e rilancia colora_excel.bat.")
@@ -1879,20 +1915,71 @@ def migliora_excel(percorso_excel):
     return True
 
 
-LOCK_SCADUTO_SECONDI = 15 * 60     # nessun "battito" da 15 minuti = abbandonato
+LOCK_SCADUTO_SECONDI = 15 * 60     # blocco illeggibile da cosi' tanto = abbandonato
 
 
 def percorso_lock():
     return os.path.join(BASE, "revmemo.lock")
 
 
+def _pid_vivo(pid):
+    """True se esiste un processo con quel numero ADESSO (Windows e Linux).
+    Stesse regole del pannello (pannello.py): su Windows si controlla anche
+    che il processo non sia gia' terminato (i numeri vengono riusati)."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            handle = k32.OpenProcess(0x1000, False, pid)
+            if not handle:
+                return False       # non esiste piu' (o non si puo' guardare)
+            try:
+                codice_uscita = ctypes.c_ulong()
+                if not k32.GetExitCodeProcess(handle, ctypes.byref(codice_uscita)):
+                    return False
+                return codice_uscita.value == 259      # STILL_ACTIVE
+            finally:
+                k32.CloseHandle(handle)
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True        # esiste ma e' di un altro utente: e' vivo
+    except OSError:
+        return False
+    return True
+
+
+def _leggi_pid_lock(percorso):
+    """Il numero di processo scritto dentro un file di blocco (int).
+    None se illeggibile o senza numero."""
+    try:
+        with open(percorso, "r", encoding="utf-8") as f:
+            testo = (f.read() or "").strip()
+    except OSError:
+        return None
+    return int(testo) if testo.isdigit() else None
+
+
 class BloccoInvio:
     """Impedisce DUE invii contemporanei (es. il pannello e l'attivita'
     pianificata di Windows partiti insieme): senza, entrambi vedrebbero
     "non ancora inviato" e il cliente riceverebbe l'email doppia.
-    Il blocco e' un file che il programma "tocca" a ogni cliente (battito):
-    se non viene toccato da 15 minuti (programma chiuso male) e' abbandonato
-    e il prossimo invio lo riprende da solo."""
+    Il blocco e' un file che contiene il numero del programma che sta
+    inviando e che viene "toccato" a ogni cliente (battito).
+    Chi lo trova lo lascia STARE se il proprietario e' VIVO (anche se
+    vecchio: un invio lento non viene mai rubato); lo riprende da solo
+    se il proprietario e' morto (subito, senza attese) o se il blocco e'
+    illeggibile da troppo tempo (15 minuti)."""
 
     def __init__(self):
         self.preso = False
@@ -1907,10 +1994,13 @@ class BloccoInvio:
                     eta = time.time() - os.path.getmtime(percorso)
                 except OSError:
                     continue                  # sparito proprio ora: riprovo
-                if eta < LOCK_SCADUTO_SECONDI:
-                    return False              # un altro invio e' in corso
+                pid = _leggi_pid_lock(percorso)
+                if pid is not None and _pid_vivo(pid):
+                    return False     # l'altro invio e' VIVO: non si tocca
+                if pid is None and eta < LOCK_SCADUTO_SECONDI:
+                    return False     # blocco recente ma illeggibile: rispetto
                 try:
-                    os.remove(percorso)       # abbandonato: lo riprendo
+                    os.remove(percorso)   # orfano (morto) o abbandonato
                 except OSError:
                     return False
                 continue
@@ -1938,6 +2028,103 @@ class BloccoInvio:
             self.preso = False
 
 
+# --- Serratura del file CLIENTI (condivisa fra pannello e motore) -------
+# Il pannello e il motore sono DUE programmi separati: la serratura interna
+# del pannello tiene in fila i suoi thread, questa tiene in fila anche
+# l'invio automatico. Vale solo per le SCRITTURE (breve: si prende prima
+# di caricare il file e si lascia dopo il salvataggio); le letture non la
+# chiedono perche' il salvataggio e' atomico (salva_excel_sicuro: chi
+# legge vede il file vecchio o quello nuovo, mai uno scritto a meta').
+
+SERRATURA_EXCEL_ATTESA = 15     # secondi che chi scrive aspetta il suo turno
+SERRATURA_EXCEL_SCADUTA = 120   # blocco illeggibile e piu' vecchio di cosi' = abbandonato
+
+
+def percorso_serratura_excel():
+    return os.path.join(BASE, "excel.lock")
+
+
+class SerraturaExcel:
+    """Fa salvare il file clienti UNO ALLA VOLTA anche a programmi diversi
+    (pannello contro motore). Regola come per BloccoInvio: a un
+    proprietario VIVO non si ruba mai; un proprietario morto si riprende
+    subito, senza far aspettare nessuno."""
+
+    def __init__(self, attesa=SERRATURA_EXCEL_ATTESA):
+        self.preso = False
+        try:
+            self._attesa = max(1, int(attesa))
+        except (TypeError, ValueError):
+            self._attesa = SERRATURA_EXCEL_ATTESA
+
+    def prendi(self):
+        percorso = percorso_serratura_excel()
+        inizio = time.time()
+        while True:
+            try:
+                fd = os.open(percorso, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                self._se_orfano_riprendi(percorso)
+                if time.time() - inizio >= self._attesa:
+                    return False
+                time.sleep(0.25)
+                continue
+            except OSError:
+                return True    # cartella non scrivibile: meglio lavorare
+            with os.fdopen(fd, "w") as f:
+                f.write(str(os.getpid()))
+            self.preso = True
+            return True
+
+    def _se_orfano_riprendi(self, percorso):
+        try:
+            eta = time.time() - os.path.getmtime(percorso)
+        except OSError:
+            return                     # sparito proprio ora: nulla da fare
+        pid = _leggi_pid_lock(percorso)
+        if pid is not None and _pid_vivo(pid):
+            return                     # proprietario vivo: aspetta il turno
+        if pid is None and eta < SERRATURA_EXCEL_SCADUTA:
+            return                     # illeggibile ma recente: aspetta
+        try:
+            os.remove(percorso)        # orfano (morto) o abbandonato
+        except OSError:
+            pass
+
+    def rilascia(self):
+        if not self.preso:
+            return
+        try:
+            if _leggi_pid_lock(percorso_serratura_excel()) in (os.getpid(), None):
+                os.remove(percorso_serratura_excel())
+        except OSError:
+            pass
+        self.preso = False
+
+
+def salva_excel_sicuro(wb, percorso_excel):
+    """Salvataggio ATOMICO del file clienti: prima su un file provvisorio,
+    poi lo scambia con quello vero. Chi legge nel frattempo (pannello,
+    backup) vede il file vecchio o quello nuovo, MAI uno scritto a meta'.
+    Se il file e' aperto in Excel (o e' protetto) fallisce con
+    PermissionError, esattamente come il salvataggio di prima."""
+    if os.path.exists(percorso_excel):
+        # posso scrivere il file vero? Se e' aperto in Excel o protetto
+        # esce qui con PermissionError, come ci si aspetta da sempre
+        with open(percorso_excel, "ab"):
+            pass
+    provvisorio = percorso_excel + ".nuovo"
+    try:
+        wb.save(provvisorio)
+        os.replace(provvisorio, percorso_excel)
+    finally:
+        try:
+            if os.path.exists(provvisorio):
+                os.remove(provvisorio)
+        except OSError:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(description="RevMemo - promemoria revisioni")
     parser.add_argument("--dry-run", action="store_true",
@@ -1955,7 +2142,7 @@ def main():
     aggiorna_template()      # crea/aggiorna il design email (con backup)
 
     print("=" * 62)
-    print(f"  {PRODOTTO} - Promemoria revisioni",
+    print(f"  {PRODOTTO} v{VERSIONE} - Promemoria revisioni",
           "(MODALITA' PROVA - nessuna email partira')" if args.dry_run else "")
     print("=" * 62)
     print(f"Oggi: {dt.date.today().strftime('%d/%m/%Y')}")
@@ -1976,7 +2163,7 @@ def main():
         if not blocco.prendi():
             print("Un altro invio e' gia' in corso (pannello o attivita' pianificata):")
             print("aspetta che finisca, cosi' nessun cliente riceve l'email doppia.")
-            print("Se non sta girando niente, riprova tra 15 minuti.")
+            print("Se invece non sta girando niente, riprova tra qualche minuto.")
             return 2
         try:
             backup_excel(percorso_excel)
