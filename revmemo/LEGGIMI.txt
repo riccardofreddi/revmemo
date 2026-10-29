@@ -3,6 +3,51 @@
  (questo e' l'unico file di istruzioni: gli altri si usano, non si leggono)
 ======================================================================
 
+NOVITA' v4.13 (ottobre 2026)
+----------------------------------------------------------------------
+- PANNELLO PIU' SICURO: solo la sua pagina puo' dare comandi al
+  pannello. Una pagina internet qualsiasi aperta nel browser NON puo'
+  piu' far partire invii, cancellare clienti o cambiare le impostazioni
+  della posta alle tue spalle. Se per caso vedi "Richiesta non
+  autorizzata" o il pannello sembra non rispondere: riapri la pagina
+  dal solito apri_pannello.bat ed e' tutto a posto (e' la protezione
+  che lavora, non un guasto).
+- La password della posta NON arriva piu' alla pagina del browser.
+- NIENTE PIU' EMAIL DOPPIE: se premi INVIA ORA mentre l'attivita'
+  pianificata sta gia' mandando i promemoria, il secondo invio aspetta
+  e ti avvisa ("riprova tra 15 minuti"). Per farlo il programma usa due
+  piccoli file tecnici accanto al programma: revmemo.lock e
+  stop_gestiti.txt (si possono cancellare a programma chiuso).
+- Gli STOP valgono piu' forte:
+  * se riattivi a mano un cliente che aveva scritto STOP, la vecchia
+    risposta NON lo ri-mette in pausa;
+  * le firme delle email di Outlook non contano piu' come STOP per
+    sbaglio;
+  * le risposte dei clienti non risultano piu' "gia' lette" nella tua
+    casella: se uno scrive "vorrei prenotare" te ne accorgi.
+- Password della posta sbagliata? Gli invii si fermano SUBITO con la
+  spiegazione (prima riprovavano 3 volte per ogni cliente, e la casella
+  rischiava il blocco).
+- Se nella colonna Attivo del file Excel la cella e' VUOTA, il cliente
+  e' considerato ATTIVO (prima veniva saltato per sbaglio e non
+  riceveva mai nessun promemoria).
+- Backup piu' sicuri: restano gli ultimi 20 piu' l'ultimo di ogni
+  giorno degli ultimi 30 giorni (prima: solo 14 in totale, e ogni
+  modifica al pannello ne consumava uno).
+- In Gmail compare il bottone "Annulla iscrizione" sulle email: se un
+  cliente lo preme ti arriva un'email con oggetto STOP, come se la
+  scrivesse lui (e il programma lo mette in pausa da solo).
+- Se l'antivirus controlla la posta, il collegamento sicuro potrebbe
+  venire rifiutato: il programma scrive cosa guardare (data e ora del
+  PC, impostazioni dell'antivirus). Non disattivare la sicurezza: si
+  sistema sempre senza.
+- Piccole cose: una pausa scritta "1,5" nelle impostazioni non fa piu'
+  crollare il programma; un cliente con l'email sbagliata non blocca
+  piu' tutti gli altri; un a-capo nascosto nell'oggetto salta solo
+  quel cliente; il controllo "pannello gia' aperto" funziona con la
+  nuova sicurezza (controlla_pannello.py aggiornato).
+
+
 1) COSA FA
 ----------------------------------------------------------------------
 - Legge i tuoi clienti dal file Excel e manda loro email di promemoria

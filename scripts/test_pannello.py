@@ -32,7 +32,7 @@ import time
 import urllib.request
 
 QUI = os.path.dirname(os.path.abspath(__file__))
-PACCHETTO = "/home/z/my-project/download/RevMemo"
+PACCHETTO = os.environ.get("REVMEMO_PKG", "/home/z/my-project/download/RevMemo")
 PORTA = 8768
 BASE_URL = f"http://127.0.0.1:{PORTA}"
 OGGI_ISO = time.strftime("%Y-%m-%d")
@@ -63,9 +63,21 @@ def check(nome, condizione, dettaglio=""):
         falliti.append(nome)
         print(f"  [FALL] {nome} {dettaglio}")
 
+_TOKEN = {"v": None}
+
+def token_sessione():
+    """chiave di sessione che il pannello mette nella pagina (come il browser)"""
+    if _TOKEN["v"] is None:
+        import re
+        pagina = urllib.request.urlopen(BASE_URL + "/", timeout=10).read().decode("utf-8")
+        m = re.search(r'name="revmemo-token" content="([^"]+)"', pagina)
+        _TOKEN["v"] = m.group(1) if m else ""
+    return _TOKEN["v"]
+
 def richiesta(percorso, corpo=None, metodo=None):
     dati = json.dumps(corpo).encode("utf-8") if corpo is not None else None
     req = urllib.request.Request(BASE_URL + percorso, data=dati, method=metodo)
+    req.add_header("X-RevMemo-Token", token_sessione())
     if dati:
         req.add_header("Content-Type", "application/json")
     try:
@@ -833,14 +845,14 @@ def main():
                               env=env3, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
         try:
-            url_alt = f"http://127.0.0.1:{porta_blocco + 1}/api/stato"
+            url_alt = f"http://127.0.0.1:{porta_blocco + 1}/api/ping"
             salito = False
             fine_t = time.time() + 25
             while time.time() < fine_t:
                 try:
                     with urllib.request.urlopen(url_alt, timeout=3) as r:
                         dati = json.loads(r.read().decode("utf-8"))
-                    if isinstance(dati, dict) and "nome_centro" in dati:
+                    if isinstance(dati, dict) and dati.get("revmemo") is True:
                         salito = True
                         break
                 except Exception:
@@ -875,10 +887,10 @@ def main():
             while time.time() < fine_t:
                 try:
                     with urllib.request.urlopen(
-                            f"http://127.0.0.1:{porta_test + 4}/api/stato",
+                            f"http://127.0.0.1:{porta_test + 4}/api/ping",
                             timeout=3) as r:
                         dati = json.loads(r.read().decode("utf-8"))
-                    if isinstance(dati, dict) and "nome_centro" in dati:
+                    if isinstance(dati, dict) and dati.get("revmemo") is True:
                         salito_iso = True
                         break
                 except Exception:
@@ -924,7 +936,7 @@ def main():
     # --- v4.8 nel MOTORE: casella email qualsiasi (non solo Gmail)
     rm = open(os.path.join(PACCHETTO, "revmemo.py"), encoding="utf-8").read()
     check("motore: invio STARTTLS per porta 587 (e SSL per 465)",
-          "srv.starttls()" in rm and "SMTP_SSL" in rm)
+          "srv.starttls(context=contesto_tls())" in rm and "SMTP_SSL" in rm)
     check("motore: IMAP Outlook mappato (outlook.office365.com)",
           "outlook.office365.com" in rm)
     check("motore: config documenta le caselle non Gmail",

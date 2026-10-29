@@ -666,3 +666,162 @@ ZIP: 258 file, sha256
 5a8b300949128d82921c296450fb7cf9f4df82bc21876d06fddfb32b290812c4,
 testzip OK; upload https://temp.sh/ZCKIU/RevMemo_v4.zip e verifica
 download POST: sha256 identico, v4.12 confermato nel contenuto.
+
+## 2026-10-29 — archivio completo su GitHub (richiesta cliente)
+Cliente: "ok metti tutto su github così non perdo nulla".
+- Nessun token GitHub nel contenitore (env senza vari GitHub, assenti
+  ~/.git-credentials ~/.netrc ~/.config/gh ~/.ssh; grep ghp_/github_pat_
+  su tutto il progetto: nulla). Rete OK: github.com 200, api.github.com
+  /zen risponde. Serve la chiave (token) dell'account del cliente.
+- Repository LOCALE creata: /home/z/my-project/revmemo-github (git init
+  -b main, commit 2decc89, tag v4.12, utente "RevMemo Dev"). Contenuto:
+  revmemo/ (pacchetto 24M con runtime Windows), dist/ (RevMemo_v4.zip =
+  v4.12 + archivio/RevMemo_v3.zip), scripts/ (pulita da __pycache__ e
+  *.log), foto/, archivio/promemoria-revisioni/, worklog.md, README.md,
+  .gitignore. 58M lavoro, .git 48M (pronta per il push).
+- Controllo dati sensibili PRIMA del commit: config.ini pacchetto =
+  modello con password vuota; test_env/config.ini = password finta
+  ("abcd efgh ijkl mnop"); clienti_revisioni.xlsx = solo esempi (Mario
+  Rossi AB123CD...); nessun reminders_log/backup/*.pyc nel pacchetto.
+  OK per repository privata.
+- scripts/push_github.sh pronto: crea la repo PRIVATA "revmemo" via API
+  e fa push main --tags; basta UTENTE_GITHUB + CHIAVE_TOKEN del cliente.
+- Archivio di sicurezza RevMemo_progetto_completo_2026-10-29.zip (senza
+  .git, 46M, 379 file) sha256
+  642c3c2f0c4b15a5ac6735e7eca0735a9833824bed163a1f9ad1951952e436db,
+  testzip OK; upload https://temp.sh/sdnGu/RevMemo_progetto_completo_
+  2026-10-29.zip e verifica download POST: sha256 identico.
+- Ricontrollo v4.12: test_pannello.py 151/151 verdi.
+
+## 2026-10-29 — push su GitHub completato
+- Cliente ha fornito utente + chiave (token) dell'account riccardofreddi.
+  Token verificato via GET /user (login OK). push_github.sh: creata repo
+  PRIVATA riccardofreddi/revmemo, push main + tag v4.12 OK.
+- Verifica API dopo il push: private=True, default_branch=main, radice
+  completa (.gitignore README.md archivio dist foto revmemo scripts
+  worklog.md), etichetta v4.12 presente.
+- Igiene: chiave rimossa dall'URL remote in .git/config (resta solo
+  l'URL pulito); la chiave NON e' stata scritta nel worklog ne' in
+  alcun file nel repository.
+- Copia di sicurezza temporanea consegnata al cliente: temp.sh/sdnGu
+  (RevMemo_progetto_completo_2026-10-29.zip, sha256 642c3c2f...).
+
+## 2026-10-29 — patch esterna v4.13: revisione completa (NON applicata)
+- Altra sessione (chiave fornita dal cliente) ha corretto 15 bug e
+  pubblicato il ramo fix/revisione-bug-v4.13 (commit 6b49f3e, 11 file,
+  +843/-87). Consegnata anche revmemo_v4.13.patch: risultato IDENTICA
+  byte per byte al diff del ramo (1478 righe, 11 file).
+- VERIFICA NOSTRA (su copia /tmp, mai sul pacchetto vero): git apply
+  pulita; test_correzioni_v413.py 55/55 VERDI su codice patchato e
+  crolla sul vecchio (i test beccano davvero i bug); suite pannello
+  151/151 (meglio dei 150/151 dichiarati: il rosso "Excel aperto"
+  dipendeva dall'utente root del loro ambiente); v43/v44 verdi;
+  v4/v41/v42 con 2 rossi l'una MA identici anche sul codice VECCHIO
+  (pre-esistenti, non colpa della patch); verifica_html SUPERATA;
+  py_compile OK; scansione sicurezza della patch (urllib/eval/exec/
+  base64/socket): nessun codice sospetto, solo test locali.
+- Tutti i 15 bug dichiarati sono VERI (verificati nel codice). Il piu'
+  grave: fin dall'inizio QUALSIASI sito aperto nel browser poteva
+  comandare il pannello su 127.0.0.1 (cambiare il server di posta e
+  leggere la password, cancellare clienti, far partire invii) via
+  CSRF/DNS rebinding. Le difese nuove (chiave di sessione + Host +
+  Origin) coprono TUTTE le vie API: il pannello ha solo do_GET/do_POST
+  e ogni operazione cliente (nuovo/modifica/elimina) passa da POST.
+- CRITICITA' TROVATE DA NOI (da sistemare prima di consegnare):
+  1. controlla_pannello.py NON aggiornato: chiama /api/stato senza
+     chiave -> 403 -> risponde "porta occupata da un altro programma"
+     invece di "pannello gia' aperto" (regressione vera).
+  2. pannello.py _esegui cancella revmemo.lock quando il motore esce
+     con codice non 0/2: se esce 1 PRIMA di prendere il lock (es.
+     password mancante) mentre un invio pianificato sta girando, gli si
+     cancella il lock VIVO (corsa rara ma possibile). Meglio cancellare
+     solo se il lock e' vecchio (>15 minuti).
+  3. Scheda browser lasciata aperta + pannello riavviato = chiave
+     vecchia -> 403 "riapri il pannello" (comportamento nuovo, da
+     documentare); manca Cache-Control: no-store sulla pagina col token.
+  4. Test "SMTP_SSL con contesto verificato" non verifica davvero il
+     contesto (assert debole: tentativi>=1).
+  5. stop_gestiti.txt e revmemo.lock in BASE: cartella non scrivibile =
+     fix 4/5 spenti in silenzio (accettabile sul PC del centro).
+  6. Con i certificati verificati, un antivirus che intercetta la posta
+     puo' FERMARE gli invii (prima partivano insicuri): previsto
+     messaggio d'aiuto, ma va spiegato in LEGGIMI.
+- Non ancora fatto (dichiarato anche da loro): lock Excel tra pannello
+  e motore; README/worklog/tag/ZIP v4.13.
+- AZIONI: diff completo del ramo salvato in upload/branch_v413.diff;
+  ramo CANCELLATO da GitHub su richiesta cliente (repo pulita: solo
+  main); patch archiviata in archivio/patch/revmemo_v4.13.patch.
+  main resta v4.12 intatto.
+- In attesa di ok cliente per: applicare patch + correzioni nostre 1-3 +
+  LEGGIMI/worklog + tag v4.13 + ZIP ricostruito + push + foto.
+
+## 2026-10-30 — verifica finale repo dopo chiarimento cliente sulle chiavi
+- Cliente conferma: NON ha dato chiavi al terzo. Ma il ramo
+  fix/revisione-bug-v4.13 c'e' stato davvero su GitHub (commit 6b49f3e
+  verificato ieri, patch byte-identica al file consegnato): quindi il
+  terzo ha usato la chiave del cliente comparsa in chat, quasi sicuro
+  inoltrandogli la conversazione o parte dei suoi testi.
+- Ricontrollo API di oggi: solo ramo main (bc1cadb), solo tag v4.12,
+  zero pull request, unico collaboratore riccardofreddi (admin). Repo
+  pulita, main intatto su v4.12, nessuna attivita' strana negli eventi.
+- La vecchia chiave e' ANCORA ATTIVA (le API rispondono): consigliato
+  al cliente di revocarla SUBITO da GitHub web (Settings → Developer
+  settings → Personal access tokens → Delete) e di crearne una nuova
+  solo se vuole che continuiamo a gestire la repo da qui.
+- Albero locale ripulito da modifiche fittizie (solo permessi/tempi su
+  zip e foto, nessun contenuto); origin/main riallineato a bc1cadb.
+  git status pulito.
+- Stato invariato: patch archiviata in
+  archivio/patch/revmemo_v4.13.patch + upload/branch_v413.diff;
+  valutazione critica consegnata al cliente in chat. In attesa di ok
+  per applicare v4.13 con correzioni nostre 1-3.
+
+## 2026-10-30 — v4.13 realizzata e consegnata (ok cliente ricevuto)
+- Ok cliente: applicata la patch esterna gia' verificata + correzioni
+  nostre. git apply pulita su revmemo-github (11 file), poi
+  sincronizzata su download/RevMemo (pacchetto live) e scripts/ live.
+- CORREZIONI NOSTRE sopra la patch:
+  1. controlla_pannello.py: stato_porta ora usa /api/ping (pubblico,
+     risponde solo il pannello RevMemo) invece di /api/stato: con la
+     nuova chiave di sessione il controllo "pannello gia' aperto"
+     funziona di nuovo (prima avrebbe detto "porta occupata da un
+     altro programma").
+  2. pannello.py: nuove _pid_vivo() (ctypes su Windows, os.kill su
+     Linux) e _libera_blocco_orfano(): alla fine di un invio fermato/
+     crollato il lock revmemo.lock viene cancellato SOLO se orfano
+     (PID del motore appena chiuso, PID morto o illeggibile); se
+     appartiene a un invio ancora vivo (attivita' pianificata) resta,
+     cosi' nessun cliente riceve l'email doppia. Test dedicato
+     scripts/test_blocco_orfano.py: 9/9 OK.
+  3. scripts/test_correzioni_v413.py: il check "SMTP_SSL con contesto
+     verificato" ora controlla DAVVERO il contesto (verify_mode ==
+     CERT_REQUIRED e check_hostname) invece dell'assert debole
+     tentativi>=1.
+     Nota correttiva sul rapporto di ieri: Cache-Control: no-store
+     ERA GIA' presente in v4.12 (in _invia): la critica n.3 valeva
+     solo per la parte "da documentare".
+- LEGGIMI.txt del pacchetto: nuova sezione "NOVITA' v4.13" (45 righe,
+  CRLF mantenuto via scripts/inserisci_novita_v413.py): sicurezza del
+  pannello, niente doppie email, STOP piu' solidi, Attivo vuoto =
+  attivo, backup 20+30, annulla iscrizione Gmail, antivirus, messaggi
+  chiari per config rotto.
+- README.md della repo aggiornato alla v4.13 con nota sulla revisione
+  esterna verificata.
+- TEST (REVMEMO_PKG=/home/z/my-project/download/RevMemo):
+  test_correzioni_v413.py 55/55 VERDI (con check rafforzato);
+  test_pannello.py 151/151 VERDI; v43 42/42; v44 52/52;
+  v4/v41/v42 = 51/31/20 OK + le 2 FALLITO pre-esistenti ("pacchetto
+  senza config.ini"/"senza clienti_revisioni.xlsx": il pacchetto di
+  sviluppo li contiene, identiche anche su v4.12); test_gen26 OK;
+  verifica_html_v48 SUPERATA; py_compile OK su tutti i file toccati.
+- FOTO: scripts/foto_v413.sh (nuovo: chiave di sessione estratta dalla
+  pagina per le chiamate demo, attesa su /api/ping): v413_1_home.png,
+  v413_2_impostazioni_password_nascosta.png (campo VUOTO con pallini
+  "gia' salvata": la password non arriva al browser),
+  v413_3_registro.png. Verifica live: API senza chiave ->
+  "Richiesta non autorizzata: riapri il pannello ...".
+- ZIP: ricrea_zip_revmemo_v45.py -> download/RevMemo_v4.zip (258 file,
+  0 vietati, testzip OK, LEGGIMI con novita' dentro); copiato in
+  dist/RevMemo_v4.zip.
+- Commit + tag v4.13 + push su GitHub; consegna al cliente via temp.sh
+  con sha256 e verifica post-download.

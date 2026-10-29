@@ -32,7 +32,7 @@ from contextlib import redirect_stdout
 
 import datetime as dt
 
-PACCHETTO = "/home/z/my-project/download/RevMemo"
+PACCHETTO = os.environ.get("REVMEMO_PKG", "/home/z/my-project/download/RevMemo")
 
 ok_count = 0
 fail_count = 0

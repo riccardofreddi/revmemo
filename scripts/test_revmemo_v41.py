@@ -27,7 +27,7 @@ from contextlib import redirect_stdout
 
 from email.message import EmailMessage
 
-PACCHETTO = "/home/z/my-project/download/RevMemo"
+PACCHETTO = os.environ.get("REVMEMO_PKG", "/home/z/my-project/download/RevMemo")
 
 ok_count = 0
 fail_count = 0
@@ -175,7 +175,7 @@ MESSAGGI = {
 class FakeIMAP:
     istanza = None
 
-    def __init__(self, host, port, timeout=None):
+    def __init__(self, host, port, timeout=None, **kw):
         self.marked = []
         self.fetch_full = []
         FakeIMAP.istanza = self

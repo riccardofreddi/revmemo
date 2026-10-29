@@ -528,11 +528,23 @@ button.badge:hover{filter:brightness(.92)}
 const $ = id => document.getElementById(id);
 const VA = v => (v == null ? "" : String(v));
 
+// chiave di sessione messa nella pagina dal pannello: serve a dimostrare
+// che la richiesta parte da QUESTA pagina e non da un altro sito
+const TOKEN_SESSIONE = (document.querySelector('meta[name="revmemo-token"]') || {}).content || "";
+
 async function api(url, corpo) {
-  const opzioni = corpo ? {method:"POST",
-    headers:{"Content-Type":"application/json"}, body:JSON.stringify(corpo)}
-    : {};
-  const r = await fetch(url, opzioni);
+  const intestazioni = {"X-RevMemo-Token": TOKEN_SESSIONE};
+  if (corpo) intestazioni["Content-Type"] = "application/json";
+  const opzioni = corpo ? {method:"POST", headers:intestazioni,
+    body:JSON.stringify(corpo)} : {headers:intestazioni};
+  let r;
+  try {
+    r = await fetch(url, opzioni);
+  } catch (e) {
+    return {"errore": "Il pannello non risponde: controlla che la finestra " +
+            "nera di RevMemo sia ancora aperta (altrimenti riaprilo da " +
+            "apri_pannello.bat)."};
+  }
   const dati = await r.json().catch(() => ({"errore":"risposta non leggibile"}));
   if (!r.ok && !dati.errore) dati.errore = "errore " + r.status;
   return dati;
@@ -682,7 +694,8 @@ function statoRiga(colore, testo) {
          testo + "</div>";
 }
 function esc(t) {
-  return VA(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return VA(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function tabella(testate, righe, centrate) {
   if (!righe.length) return '<p class="desc">Nessun dato.</p>';
@@ -1210,9 +1223,9 @@ function disegnaRegistro() {
   $("b-tutti-registro").classList.toggle("nascosto", !f);
   $("tabella-registro").innerHTML = vedi.length
     ? tabella(["Data", "Cliente (email)", "Targa", "Promemoria", "Scadenza"],
-      vedi.map(x => [formattaData(x.data), esc(x.email),
+      vedi.map(x => [esc(formattaData(x.data)), esc(x.email),
         "<b>" + esc(x.targa) + "</b>",
-        esc(tipoLbl[x.tipo] || x.tipo), formattaData(x.scadenza)]))
+        esc(tipoLbl[x.tipo] || x.tipo), esc(formattaData(x.scadenza))]))
     : (REGISTRO.length
       ? '<p class="desc">Nessun promemoria con questa ricerca: premi ' +
         '\u2716 Mostra tutto per tornare all\u2019elenco.</p>'

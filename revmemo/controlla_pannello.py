@@ -69,10 +69,13 @@ def stato_porta(porta):
     try:
         import json
         import urllib.request
+        # /api/ping risponde SOLO il pannello RevMemo ed e' pubblico:
+        # le API vere dalla v4.13 vogliono la chiave di sessione, quindi
+        # /api/stato risponderebbe 403 e sembrerebbe "altro programma"
         with urllib.request.urlopen(
-                f"http://127.0.0.1:{porta}/api/stato", timeout=3) as r:
+                f"http://127.0.0.1:{porta}/api/ping", timeout=3) as r:
             dati = json.loads(r.read().decode("utf-8"))
-        if isinstance(dati, dict) and "nome_centro" in dati:
+        if isinstance(dati, dict) and dati.get("revmemo") is True:
             return "pannello"
         return "altro"
     except Exception:

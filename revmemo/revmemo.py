@@ -62,11 +62,12 @@ import os
 import re
 import shutil
 import smtplib
+import ssl
 import sys
 import time
 import zipfile
 from email.message import EmailMessage
-from email.utils import formataddr, parseaddr
+from email.utils import formataddr, formatdate, make_msgid, parseaddr
 
 # Rende sicura la stampa a schermo su qualsiasi console Windows
 try:
@@ -242,6 +243,16 @@ def _si(v, predefinito=False):
     if v is None:
         return predefinito
     return str(v).strip().upper() in ("SI", "SÌ", "S", "TRUE", "VERO", "1", "YES", "Y")
+
+
+# Un SOLO indirizzo email spedibile: niente spazi, virgole, punti e virgola,
+# parentesi o secondi indirizzi ("a@x.it, b@y.it" manderebbe a due persone;
+# un "a capo" dentro la cella farebbe crollare l'intestazione dell'email)
+_EMAIL_OK = re.compile(r"^[^@\s,;<>()\[\]\"]+@[^@\s,;<>()\[\]\"]+\.[^@\s,;<>()\[\]\"]{2,}$")
+
+
+def email_valida(indirizzo):
+    return bool(_EMAIL_OK.match(str(indirizzo or "").strip()))
 
 
 # Testi PREDEFINITI delle email (usati quando config.ini non ha la
@@ -467,7 +478,8 @@ def carica_config():
     def finestra(val, predef):
         try:
             a, b = str(val).split("-")
-            return (int(a), int(b))
+            a, b = int(a), int(b)
+            return (min(a, b), max(a, b))     # "30-26" vale come "26-30"
         except Exception:
             try:
                 n = int(val)
@@ -483,7 +495,13 @@ def carica_config():
     c["etichette"] = {30: "30 giorni prima", 10: "10 giorni prima", 1: "1 giorno prima"}
 
     inv = cfg["invii"] if cfg.has_section("invii") else {}
-    c["pausa"] = float(inv.get("pausa_secondi", "1.5"))
+    # "1,5" (virgola all'italiana) vale come 1.5; un testo strano non
+    # deve far crollare il programma: si usa il valore consigliato
+    try:
+        c["pausa"] = max(0.0, float(str(inv.get("pausa_secondi", "1.5"))
+                                    .strip().replace(",", ".")))
+    except (TypeError, ValueError):
+        c["pausa"] = 1.5
     c["notifica_titolare"] = _si(inv.get("notifica_titolare", "SI"), True)
     c["email_titolare"] = inv.get("email_titolare", "").strip()
 
@@ -610,6 +628,7 @@ def leggi_clienti(percorso_excel):
             continue
 
         data_scad, da_mese = converti_scadenza(scadenza)
+        attivo_testo = str(attivo).strip().upper() if attivo is not None else ""
         clienti.append({
             "riga": row,
             "nome": str(nome).strip() if nome else "",
@@ -619,8 +638,11 @@ def leggi_clienti(percorso_excel):
             "scadenza": data_scad,
             "da_mese": da_mese,
             "fatta": _si(fatta),
-            "attivo": _si(attivo),
-            "attivo_testo": str(attivo).strip().upper() if attivo is not None else "",
+            # Cella Attivo VUOTA = attivo: le guide dicono che solo NO e STOP
+            # escludono un cliente. Prima un cliente con la cella lasciata
+            # vuota veniva saltato in silenzio e non riceveva mai nulla.
+            "attivo": True if attivo_testo == "" else _si(attivo),
+            "attivo_testo": attivo_testo,
         })
     return clienti
 
@@ -693,7 +715,63 @@ IMAP_PORTA = 993
 _MESI_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 GIORNI_DI_RICERCA = 7          # guarda le email degli ultimi N giorni
-MASSIMO_EMAIL_DA_VEDERE = 60   # oltre: considera solo le piu' recenti
+MASSIMO_EMAIL_DA_VEDERE = 150  # oltre: considera solo le piu' recenti (e lo dice)
+
+
+def contesto_tls():
+    """Contesto TLS che VERIFICA il certificato del server (nome compreso).
+    Se non ricevono un contesto, smtplib e imaplib ne creano uno che NON
+    controlla nulla: chiunque sulla rete potrebbe spacciarsi per il server
+    di posta e leggere la password. Qui si usa sempre quello verificato
+    (certificati del sistema: su Windows quelli di Windows)."""
+    return ssl.create_default_context()
+
+
+def causa_tls(e):
+    """Spiegazione in italiano se l'errore e' un certificato non valido."""
+    if isinstance(e, ssl.SSLCertVerificationError):
+        return ("Il certificato del server di posta non risulta valido: "
+                "controlla che data e ora del PC siano giuste e che "
+                "l'antivirus non intercetti le connessioni sicure.")
+    return ""
+
+
+# Memoria degli STOP gia' registrati. Senza, una risposta STOP che resta
+# nella posta (ultimi 7 giorni) rimetterebbe in pausa un cliente che il
+# titolare ha appena RIATTIVATO a mano. Una riga per email: data;chiave.
+def percorso_stop_gestiti():
+    return os.path.join(BASE, "stop_gestiti.txt")
+
+
+def chiave_messaggio(msg_hdr, mittente, oggetto):
+    """Identifica una email: il suo Message-ID; se manca, mittente+data+oggetto."""
+    mid = str(msg_hdr.get("Message-ID", "") or "").strip()
+    if mid:
+        return mid
+    data = str(msg_hdr.get("Date", "") or "").strip()
+    return f"{mittente}|{data}|{oggetto.strip()}"[:300]
+
+
+def carica_stop_gestiti():
+    gestiti = set()
+    try:
+        with open(percorso_stop_gestiti(), "r", encoding="utf-8") as f:
+            for riga in f:
+                parti = riga.rstrip("\r\n").split(";", 1)
+                if len(parti) == 2 and parti[1]:
+                    gestiti.add(parti[1])
+    except OSError:
+        pass
+    return gestiti
+
+
+def segna_stop_gestito(chiave):
+    try:
+        with open(percorso_stop_gestiti(), "a", encoding="utf-8") as f:
+            f.write(f"{dt.date.today().isoformat()};"
+                    f"{' '.join(str(chiave).split())}\n")
+    except OSError:
+        pass
 
 
 def host_imap_da(host_smtp):
@@ -731,23 +809,54 @@ def caselle_del_centro():
 _MARCATORI_CITAZIONE = ("ha scritto:", "wrote:",
                         "messaggio originale", "original message",
                         "messaggio inoltrato", "forwarded message")
+_INIZI_INTESTAZIONE = ("da:", "from:", "de:", "von:")
+_INIZI_CAMPI = ("inviato:", "sent:", "data:", "date:", "oggetto:",
+                "subject:", "a:", "to:", "cc:")
+
+
+def _inizia_citazione_outlook(righe, i):
+    """Outlook (e Outlook web) non usano '>' ne' 'ha scritto:': sotto la
+    risposta mettono un blocco 'Da: ... Inviato: ... A: ... Oggetto: ...'
+    seguito dal promemoria originale, che contiene la scritta STOP del piede."""
+    if not righe[i].strip().lower().startswith(_INIZI_INTESTAZIONE):
+        return False
+    for k in range(i + 1, min(i + 6, len(righe))):
+        if righe[k].strip().lower().startswith(_INIZI_CAMPI):
+            return True
+    return False
+
+
+def _riga_piede_promemoria(riga):
+    """Riga del piede dei NOSTRI promemoria (quella con 'oggetto STOP'):
+    non e' mai una richiesta del cliente, ovunque sia finita nel messaggio."""
+    s = riga.lower()
+    frasi = ("con oggetto stop", str(CFG.get("msg_disiscrizione") or "").strip().lower())
+    return any(f and f in s for f in frasi)
 
 
 def rimuovi_citazioni(testo):
     """Ritorna la risposta SENZA il testo citato (il promemoria originale
-    che Gmail riporta sotto quando si risponde): la parola STOP dentro
-    il footer del promemoria NON deve contare se il cliente ha scritto
-    altro. Resta sempre valida una riga che contiene SOLO la parola
-    STOP (anche se il cliente la scrive sotto la citazione)."""
+    che il programma di posta riporta sotto quando si risponde): la parola
+    STOP dentro il footer del promemoria NON deve contare se il cliente ha
+    scritto altro. Resta sempre valida una riga che contiene SOLO la parola
+    STOP (anche se il cliente la scrive sotto la citazione). Riconosce le
+    citazioni di Gmail/Apple Mail ('ha scritto:', '>') e quelle di Outlook
+    ('Da: ... Inviato: ...'); in piu' scarta ovunque la riga del piede."""
     righe = (testo or "").splitlines()
+    risultato = testo or ""
     for i, riga in enumerate(righe):
         s = riga.strip().lower()
-        if s.startswith(">") or any(m in s for m in _MARCATORI_CITAZIONE):
+        if (s.startswith(">") or any(m in s for m in _MARCATORI_CITAZIONE)
+                or _inizia_citazione_outlook(righe, i)):
             # riga con SOLO la parola STOP dopo la citazione = scritta dal cliente
             coda = [r for r in righe[i + 1:]
                     if r.strip().strip("!.").upper() == "STOP"]
-            return "\n".join(righe[:i] + coda)
-    return testo or ""
+            risultato = "\n".join(righe[:i] + coda)
+            break
+    rimaste = risultato.splitlines()
+    if any(_riga_piede_promemoria(r) for r in rimaste):
+        return "\n".join(r for r in rimaste if not _riga_piede_promemoria(r))
+    return risultato
 
 
 def _primo_blocco(dati):
@@ -825,16 +934,23 @@ def email_clienti_nel_excel(percorso_excel):
         wb.close()
 
 
-def segna_stop_nel_excel(percorso_excel, email_mittente):
+def segna_stop_nel_excel(percorso_excel, email_mittente, esito=None):
     """Scrive STOP nella colonna Attivo di tutte le righe di quel cliente.
-    Ritorna [(riga, nome, targa), ...] delle righe aggiornate ([] = niente)."""
+    Ritorna [(riga, nome, targa), ...] delle righe aggiornate ([] = niente).
+    Se si passa un dizionario 'esito', in caso di ERRORE (Excel aperto,
+    file illeggibile) ci scrive esito["errore"] = True: cosi' chi chiama
+    distingue 'era gia' in pausa' da 'non sono riuscito a scrivere'."""
+    if esito is None:
+        esito = {}
     try:
         wb = load_workbook(percorso_excel)
     except PermissionError:
+        esito["errore"] = True
         print("  ATTENZIONE: l'Excel risulta APERTO: non posso registrare lo STOP.")
         print("  Chiudi Excel e rilancia il programma: lo STOP verra' registrato allora.")
         return []
     except Exception as e:
+        esito["errore"] = True
         print(f"  ATTENZIONE: non riesco ad aggiornare l'Excel ({e})")
         return []
     try:
@@ -866,10 +982,12 @@ def segna_stop_nel_excel(percorso_excel, email_mittente):
                                "risposta STOP registrata", "-")
         return toccate
     except PermissionError:
+        esito["errore"] = True
         print("  ATTENZIONE: l'Excel risulta APERTO: lo STOP NON e' stato salvato.")
         print("  Chiudi Excel e rilancia il programma: verra' registrato al prossimo avvio.")
         return []
     except Exception as e:
+        esito["errore"] = True
         print(f"  ATTENZIONE: aggiornamento Excel non riuscito ({e})")
         return []
 
@@ -887,11 +1005,14 @@ def controlla_risposte(percorso_excel, dry_run=False):
     print(f"Controllo le risposte degli ultimi {GIORNI_DI_RICERCA} giorni "
           f"nella casella {MITTENTE_EMAIL} ...")
     try:
-        posta = imaplib.IMAP4_SSL(host_imap_da(SMTP_HOST), IMAP_PORTA, timeout=30)
+        posta = imaplib.IMAP4_SSL(host_imap_da(SMTP_HOST), IMAP_PORTA,
+                                  ssl_context=contesto_tls(), timeout=30)
         posta.login(MITTENTE_EMAIL, MITTENTE_PASSWORD)
     except Exception as e:
         print(f"AVVISO: non riesco a controllare le risposte STOP "
               f"({e.__class__.__name__}: {e}).")
+        if causa_tls(e):
+            print("        " + causa_tls(e))
         print("         Proseguo comunque con gli invii.")
         return None
     eventi = []
@@ -902,12 +1023,16 @@ def controlla_risposte(percorso_excel, dry_run=False):
         tip, dati = posta.search(None, "SINCE", dal)
         numeri = (dati[0] or b"").split() if tip == "OK" else []
         if len(numeri) > MASSIMO_EMAIL_DA_VEDERE:
+            print(f"  AVVISO: nella posta ci sono {len(numeri)} email degli ultimi "
+                  f"{GIORNI_DI_RICERCA} giorni: guardo solo le "
+                  f"{MASSIMO_EMAIL_DA_VEDERE} piu' recenti.")
             numeri = numeri[-MASSIMO_EMAIL_DA_VEDERE:]
         if not numeri:
             print("  nessun nuovo STOP.")
             return eventi
         indirizzi_clienti = email_clienti_nel_excel(percorso_excel)
         caselle_proprie = caselle_del_centro()
+        gia_gestiti = carica_stop_gestiti()
         ignorate_proprie = 0
         for num in numeri:
             tip, dati = posta.fetch(num, "(RFC822.HEADER)")
@@ -919,6 +1044,9 @@ def controlla_risposte(percorso_excel, dry_run=False):
             if not mitt_rapido:
                 continue
             oggetto_rapido = str(msg_hdr.get("Subject", "") or "")
+            chiave_msg = chiave_messaggio(msg_hdr, mitt_rapido, oggetto_rapido)
+            if chiave_msg in gia_gestiti:
+                continue          # STOP gia' registrato (e magari riattivato dopo)
             if mitt_rapido in caselle_proprie:
                 # Email che PARTE dal centro stesso. Quasi sempre e' la copia
                 # di un promemoria (o del riepilogo) mandato a se stessi:
@@ -934,7 +1062,11 @@ def controlla_risposte(percorso_excel, dry_run=False):
                     continue
             elif mitt_rapido not in indirizzi_clienti:
                 continue          # non e' uno dei clienti: non ci interessa
-            tip, dati = posta.fetch(num, "(RFC822)")
+            # BODY.PEEK[] legge il messaggio SENZA segnarlo come letto: con
+            # (RFC822) ogni risposta dei clienti (anche "vorrei prenotare")
+            # risultava gia' letta nella casella del titolare, che rischiava
+            # di non accorgersene mai.
+            tip, dati = posta.fetch(num, "(BODY.PEEK[])")
             msg_raw = _primo_blocco(dati)
             if not msg_raw:
                 continue
@@ -952,9 +1084,17 @@ def controlla_risposte(percorso_excel, dry_run=False):
                       f"verrebbe messo Attivo = STOP")
                 eventi.append({"email": mitt, "righe": [], "prova": True})
                 continue
-            toccate = segna_stop_nel_excel(percorso_excel, mitt)
+            esito = {}
+            toccate = segna_stop_nel_excel(percorso_excel, mitt, esito)
             if not toccate:
-                continue          # gia' in pausa o Excel non salvato: non la segno come letta
+                if not esito.get("errore"):
+                    # era gia' in pausa: ricordo comunque questa email, cosi'
+                    # una riattivazione futura non viene annullata da lei
+                    segna_stop_gestito(chiave_msg)
+                    gia_gestiti.add(chiave_msg)
+                continue          # Excel non salvato: riprovo al prossimo avvio
+            segna_stop_gestito(chiave_msg)
+            gia_gestiti.add(chiave_msg)
             try:
                 posta.store(num, "+FLAGS", "\\Seen")
             except Exception:
@@ -1270,24 +1410,34 @@ class Sender:
 
     def __init__(self):
         self.server = None
+        # Errore per cui riprovare e' inutile (password sbagliata, certificato
+        # non valido, server senza cifratura): gli invii si fermano subito.
+        self.errore_fatale = None
 
     def _connetti(self):
         if self.server is None:
             if SMTP_PORT == 587:
                 # porta 587 = STARTTLS (Outlook e molti altri fornitori):
-                # prima ci si collega in chiaro, poi si cripta la linea
+                # prima ci si collega in chiaro, poi si cripta la linea.
+                # Se la cifratura non parte NON si prosegue: la password
+                # non deve mai viaggiare in chiaro.
                 srv = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
-                srv.ehlo()
                 try:
-                    srv.starttls()
                     srv.ehlo()
-                except smtplib.SMTPException:
-                    pass          # server senza STARTTLS: prosegue cosi'
+                    srv.starttls(context=contesto_tls())
+                    srv.ehlo()
+                except BaseException:
+                    try:
+                        srv.close()
+                    except Exception:
+                        pass
+                    raise
                 self.server = srv
             else:
                 # porta 465 (e altre) = SSL dalla prima riga (Gmail ecc.)
                 self.server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT,
-                                               timeout=30)
+                                               timeout=30,
+                                               context=contesto_tls())
             self.server.login(MITTENTE_EMAIL, MITTENTE_PASSWORD)
 
     def _chiudi(self):
@@ -1298,7 +1448,14 @@ class Sender:
             pass
         self.server = None
 
-    def invia(self, destinatario, oggetto, testo, html=None, logo=None):
+    def invia(self, destinatario, oggetto, testo, html=None, logo=None,
+              con_stop=False):
+        """Invia una email. Ritorna None se e' partita, altrimenti l'errore.
+        con_stop=True (email ai CLIENTI) aggiunge l'intestazione
+        List-Unsubscribe: Gmail e Outlook mostrano il bottone 'annulla
+        iscrizione', che manda a questa casella un'email con oggetto STOP."""
+        if self.errore_fatale is not None:
+            return self.errore_fatale
         ultimo_errore = None
         for tentativo in range(1, 4):
             try:
@@ -1307,6 +1464,11 @@ class Sender:
                 msg["From"] = formataddr((NOME_CENTRO, MITTENTE_EMAIL))
                 msg["To"] = destinatario
                 msg["Subject"] = oggetto
+                msg["Date"] = formatdate(localtime=True)
+                dominio = MITTENTE_EMAIL.split("@")[-1] if "@" in MITTENTE_EMAIL else None
+                msg["Message-ID"] = make_msgid(domain=dominio)
+                if con_stop and MITTENTE_EMAIL:
+                    msg["List-Unsubscribe"] = f"<mailto:{MITTENTE_EMAIL}?subject=STOP>"
                 if RISPOSTA_A:
                     msg["Reply-To"] = RISPOSTA_A
                 msg.set_content(testo)
@@ -1320,11 +1482,41 @@ class Sender:
                             logo, maintype="image", subtype="png", cid="<logo>")
                 self.server.send_message(msg)
                 return None
+            except smtplib.SMTPAuthenticationError as e:
+                # password per app / utente sbagliati: riprovare 3 volte per
+                # ogni cliente non serve e rischia di far bloccare la casella
+                self._chiudi()
+                self.errore_fatale = e
+                return e
+            except smtplib.SMTPNotSupportedError as e:
+                self._chiudi()          # niente STARTTLS: mai password in chiaro
+                self.errore_fatale = e
+                return e
+            except ssl.SSLCertVerificationError as e:
+                self._chiudi()
+                self.errore_fatale = e
+                return e
+            except smtplib.SMTPRecipientsRefused as e:
+                self._chiudi()          # indirizzo rifiutato dal server
+                return e
+            except smtplib.SMTPResponseException as e:
+                ultimo_errore = e
+                self._chiudi()
+                if 500 <= e.smtp_code < 600:
+                    return e            # errore definitivo: riprovare non serve
+                if tentativo < 3:
+                    time.sleep(3 * tentativo)
             except (smtplib.SMTPException, OSError) as e:
                 ultimo_errore = e
                 self._chiudi()
                 if tentativo < 3:
                     time.sleep(3 * tentativo)
+            except ValueError as e:
+                # es. "a capo" dentro un campo (cella Excel con Alt+Invio):
+                # l'intestazione non e' valida. Questo cliente salta, gli
+                # altri partono lo stesso (prima il programma si fermava).
+                self._chiudi()
+                return e
         return ultimo_errore
 
     def chiudi(self):
@@ -1334,18 +1526,44 @@ class Sender:
 # 6) BACKUP AUTOMATICO DEL FILE CLIENTI
 # =====================================================================
 
+BACKUP_ULTIMI = 20          # gli ultimi N backup, qualunque giorno
+BACKUP_GIORNI = 30          # + il piu' recente di ognuno degli ultimi N giorni
+
+
+def pulisci_backup(cartella):
+    """Ritenzione dei backup. Prima si tenevano solo i 14 piu' RECENTI in
+    assoluto: ogni salvataggio del pannello fa un backup, quindi dopo 14
+    modifiche nella stessa giornata sparivano TUTTI i backup dei giorni
+    prima. Ora: gli ultimi 20 + l'ultimo di ogni giorno degli ultimi 30."""
+    files = [os.path.join(cartella, f) for f in os.listdir(cartella)
+             if f.startswith("clienti_") and f.endswith(".xlsx")]
+    files.sort(key=os.path.getmtime, reverse=True)
+    tieni = set(files[:BACKUP_ULTIMI])
+    giorni_visti = set()
+    limite = time.time() - BACKUP_GIORNI * 86400
+    for p in files:                      # dal piu' recente al piu' vecchio
+        m = os.path.getmtime(p)
+        if m < limite:
+            continue
+        giorno = dt.date.fromtimestamp(m)
+        if giorno not in giorni_visti:
+            giorni_visti.add(giorno)
+            tieni.add(p)
+    for p in files:
+        if p not in tieni:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+
 def backup_excel(percorso_excel):
     try:
         cartella = os.path.join(BASE, "backup")
         os.makedirs(cartella, exist_ok=True)
         nome = f"clienti_{dt.date.today().isoformat()}_{dt.datetime.now().strftime('%H%M')}.xlsx"
         shutil.copy2(percorso_excel, os.path.join(cartella, nome))
-        # tieni solo i 14 piu' recenti
-        files = sorted(
-            (os.path.join(cartella, f) for f in os.listdir(cartella)),
-            key=os.path.getmtime, reverse=True)
-        for vecchio in files[14:]:
-            os.remove(vecchio)
+        pulisci_backup(cartella)
         return True
     except Exception as e:
         print(f"  (backup non riuscito: {e} - continuo comunque)")
@@ -1365,21 +1583,25 @@ def invia_riepilogo(sender, inviati, errori, esclusi, scadute, dry_run,
     oggi = dt.date.today().strftime("%d/%m/%Y")
     destinatario = CFG["email_titolare"] or MITTENTE_EMAIL
 
+    # Tutto cio' che viene dall'Excel o dagli errori va "reso sicuro": un
+    # nome con & o < (o un messaggio d'errore con <...>) non deve rompere
+    # la tabella del riepilogo.
+    esc = html_lib.escape
     righe_html = ""
     for i in inviati:
-        righe_html += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{i['targa']}</td>"
-                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{i['email']}</td>"
-                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{i['desc']}</td></tr>")
+        righe_html += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(str(i['targa']))}</td>"
+                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(str(i['email']))}</td>"
+                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(str(i['desc']))}</td></tr>")
     righe_err = ""
     for e in errori:
-        righe_err += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{e['targa']}</td>"
-                      f"<td style='padding:6px 10px;border-bottom:1px solid #eee;color:#C0392B;'>{e['errore']}</td></tr>")
+        righe_err += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(str(e['targa']))}</td>"
+                      f"<td style='padding:6px 10px;border-bottom:1px solid #eee;color:#C0392B;'>{esc(str(e['errore']))}</td></tr>")
     righe_stop = ""
     for s in eventi_stop:
         dettaglio = ", ".join(
             f"{n or 'cliente'} (riga {r}, targa {t or '?'})" for r, n, t in s.get("righe", []))
-        righe_stop += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{s['email']}</td>"
-                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{dettaglio or 'richiesta STOP'}</td></tr>")
+        righe_stop += (f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(str(s['email']))}</td>"
+                       f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{esc(dettaglio or 'richiesta STOP')}</td></tr>")
 
     html = f"""<div style="font-family:Arial,sans-serif;color:#333;max-width:600px;">
   <h2 style="color:{CFG['colore']};margin-bottom:4px;">Riepilogo promemoria - {oggi}</h2>
@@ -1657,6 +1879,65 @@ def migliora_excel(percorso_excel):
     return True
 
 
+LOCK_SCADUTO_SECONDI = 15 * 60     # nessun "battito" da 15 minuti = abbandonato
+
+
+def percorso_lock():
+    return os.path.join(BASE, "revmemo.lock")
+
+
+class BloccoInvio:
+    """Impedisce DUE invii contemporanei (es. il pannello e l'attivita'
+    pianificata di Windows partiti insieme): senza, entrambi vedrebbero
+    "non ancora inviato" e il cliente riceverebbe l'email doppia.
+    Il blocco e' un file che il programma "tocca" a ogni cliente (battito):
+    se non viene toccato da 15 minuti (programma chiuso male) e' abbandonato
+    e il prossimo invio lo riprende da solo."""
+
+    def __init__(self):
+        self.preso = False
+
+    def prendi(self):
+        percorso = percorso_lock()
+        for _ in range(3):
+            try:
+                fd = os.open(percorso, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                try:
+                    eta = time.time() - os.path.getmtime(percorso)
+                except OSError:
+                    continue                  # sparito proprio ora: riprovo
+                if eta < LOCK_SCADUTO_SECONDI:
+                    return False              # un altro invio e' in corso
+                try:
+                    os.remove(percorso)       # abbandonato: lo riprendo
+                except OSError:
+                    return False
+                continue
+            except OSError:
+                return True    # cartella non scrivibile: meglio lavorare che bloccarsi
+            with os.fdopen(fd, "w") as f:
+                f.write(str(os.getpid()))
+            self.preso = True
+            return True
+        return False
+
+    def batti(self):
+        if self.preso:
+            try:
+                os.utime(percorso_lock(), None)
+            except OSError:
+                pass
+
+    def rilascia(self):
+        if self.preso:
+            try:
+                os.remove(percorso_lock())
+            except OSError:
+                pass
+            self.preso = False
+
+
 def main():
     parser = argparse.ArgumentParser(description="RevMemo - promemoria revisioni")
     parser.add_argument("--dry-run", action="store_true",
@@ -1691,8 +1972,22 @@ def main():
             print("  password_app = la Password per app di Google (16 caratteri)")
             print("Guida: LEGGIMI.txt, sezione 5")
             sys.exit(1)
-        backup_excel(percorso_excel)
+        blocco = BloccoInvio()
+        if not blocco.prendi():
+            print("Un altro invio e' gia' in corso (pannello o attivita' pianificata):")
+            print("aspetta che finisca, cosi' nessun cliente riceve l'email doppia.")
+            print("Se non sta girando niente, riprova tra 15 minuti.")
+            return 2
+        try:
+            backup_excel(percorso_excel)
+            return _giro(args, percorso_excel, blocco)
+        finally:
+            blocco.rilascia()
+    return _giro(args, percorso_excel)
 
+
+def _giro(args, percorso_excel, blocco=None):
+    """Il lavoro vero: STOP dei clienti, invii, riepilogo al titolare."""
     # Prima di inviare: leggo la posta in arrivo per gli STOP dei clienti
     eventi_stop = controlla_risposte(percorso_excel, args.dry_run) or []
     print()
@@ -1703,9 +1998,11 @@ def main():
     sender = Sender()
     inviati, errori = [], []
     esclusi = scadute = saltati_log = 0
-    ogggi = dt.date.today()
+    oggi = dt.date.today()
 
     for c in clienti:
+        if blocco:
+            blocco.batti()
         targa = c["targa"] or "(targa mancante)"
         riga_lbl = f"riga {c['riga']:>2} | {(c['nome'] or '(senza nome)')[:18]:<18} | {targa:<8} | "
 
@@ -1720,7 +2017,7 @@ def main():
             print(f"  - {riga_lbl}revisione GIA' FATTA -> nessuna email")
             esclusi += 1
             continue
-        if not c["email"] or "@" not in c["email"]:
+        if not email_valida(c["email"]):
             print(f"  - {riga_lbl}email mancante o non valida -> saltato")
             esclusi += 1
             continue
@@ -1729,7 +2026,7 @@ def main():
             esclusi += 1
             continue
 
-        giorni = (c["scadenza"] - ogggi).days
+        giorni = (c["scadenza"] - oggi).days
         if giorni < 0:
             print(f"  - {riga_lbl}revisione SCADUTA da {-giorni} gg -> nessun invio")
             scadute += 1
@@ -1763,14 +2060,29 @@ def main():
             inviati.append({"targa": targa, "email": c["email"], "desc": descrizione})
             continue
 
-        errore = sender.invia(c["email"], oggetto, testo, html, leggi_logo())
+        errore = sender.invia(c["email"], oggetto, testo, html, leggi_logo(),
+                              con_stop=True)
         if errore is None:
-            registra_invio(c["email"], c["targa"], tipo, giorni, descrizione, scadenza_iso)
+            try:
+                registra_invio(c["email"], c["targa"], tipo, giorni, descrizione, scadenza_iso)
+            except OSError as e:
+                # l'email E' partita ma il registro non si scrive: domani
+                # potrebbe ripartire uguale. Meglio dirlo forte.
+                print(f"  ATTENZIONE: email inviata ma NON scritta nel registro ({e}).")
+                print(f"              Rischio doppione: controlla {percorso_log()}")
             print(f"  [OK] {riga_lbl}email inviata a {c['email']} ({descrizione})")
             inviati.append({"targa": targa, "email": c["email"], "desc": descrizione})
         else:
-            print(f"  [X] {riga_lbl}ERRORE dopo 3 tentativi: {errore}")
+            print(f"  [X] {riga_lbl}ERRORE: {errore}")
             errori.append({"targa": targa, "errore": str(errore)})
+            if sender.errore_fatale is not None:
+                print()
+                print("  Gli invii si FERMANO qui: la casella non accetta il collegamento")
+                print("  (password per app o server sbagliati, oppure collegamento non sicuro).")
+                if causa_tls(errore):
+                    print("  " + causa_tls(errore))
+                print("  Controlla Impostazioni nel pannello e rilancia.")
+                break
         time.sleep(CFG["pausa"])
 
     if not args.dry_run:

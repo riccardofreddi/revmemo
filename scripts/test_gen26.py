@@ -8,7 +8,7 @@ import shutil
 import sys
 import tempfile
 
-PACCHETTO = "/home/z/my-project/download/RevMemo"
+PACCHETTO = os.environ.get("REVMEMO_PKG", "/home/z/my-project/download/RevMemo")
 tmp = tempfile.mkdtemp(prefix="revmemo_gen26_")
 for f in ("revmemo.py", "template_email.html", "logo.png"):
     shutil.copy2(os.path.join(PACCHETTO, f), os.path.join(tmp, f))

@@ -10,14 +10,40 @@ sul computer del centro.
 | Cartella | Contenuto |
 |---|---|
 | `revmemo/` | Il pacchetto completo pronto da installare: pannello (`pannello.py` + `pannello.html`), motore (`revmemo.py`), runtime Windows Python 3.12.8 incorporato con openpyxl 3.1.5, guide (`LEGGIMI.txt`, `ISTRUZIONI_CENTRO.md`, `GUIDA_INSTALLATORE.md`) |
-| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.12); `archivio/` = versioni precedenti |
-| `scripts/` | Strumenti di sviluppo: suite di test `test_pannello.py` (151 controlli), script per ricostruire lo ZIP (`ricrea_zip_revmemo_v45.py`), verifiche HTML, harness fotografici |
+| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.13); `archivio/` = versioni precedenti |
+| `scripts/` | Strumenti di sviluppo: suite di test `test_pannello.py` (151 controlli) e `test_correzioni_v413.py` (55 controlli), script per ricostruire lo ZIP (`ricrea_zip_revmemo_v45.py`), verifiche HTML, harness fotografici |
 | `scripts/revmemo_build/` | Asset per ricostruire il runtime incorporato (python_embed.zip + wheel openpyxl) |
 | `foto/` | Schermate di verifica del pannello, versione per versione |
 | `archivio/` | Progetti precedenti (`promemoria-revisioni`, la prima versione senza pannello) |
 | `worklog.md` | Diario di sviluppo: ogni versione con richieste, scelte, test e verifiche |
 
-## Versione attuale: v4.12 (2026-10-29)
+## Versione attuale: v4.13 (2026-10-30)
+
+- **Pannello più sicuro**: chiave di sessione + controllo Host/Origin — una
+  pagina web qualsiasi aperta nel browser non può più comandare il pannello
+  (cambiare server di posta, leggere la password, cancellare clienti, avviare
+  invii). La password non viene più inviata al browser.
+- **Niente più doppie email**: blocco anti-doppio-invio con battito di 15
+  minuti tra pannello e attività pianificata (`revmemo.lock`); liberato solo
+  se orfano (controllo del PID)
+- **STOP più solidi**: memoria degli STOP già gestiti (`stop_gestiti.txt`,
+  una riattivazione manuale non viene più annullata), citazioni di Outlook
+  riconosciute, riga del piede sempre scartata, letture IMAP con BODY.PEEK
+  (le risposte dei clienti non risultano più "già lette")
+- **Invii più robusti**: password sbagliata = fermata immediata con
+  spiegazione; oggetto con a-capo salta solo quel cliente; pausa "1,5";
+  finestra "30-26"; cella Attivo VUOTA = cliente attivo
+- **Backup**: ultimi 20 + ultimo di ogni giorno degli ultimi 30
+- **Email**: intestazioni Date/Message-ID/List-Unsubscribe (bottone
+  "Annulla iscrizione" in Gmail → STOP); riepilogo titolare con escape HTML
+- **Messaggi chiari** per config.ini rotto (prima appariva solo "1")
+- `controlla_pannello.py` aggiornato a `/api/ping` (il controllo "pannello
+  già aperto" funziona con la nuova sicurezza)
+- Test: **151/151 pannello + 55/55 correzioni + v43 42/42 + v44 52/52**;
+  v4/v41/v42 con le solite 2 verifiche pre-esistenti (pacchetto di sviluppo
+  con config.ini dentro, non è quello dello ZIP)
+
+### v4.12 (2026-10-29)
 
 - Salvando una **scadenza nuova**, la voce "Revisione fatta" torna **NO
   da sola** (avviso nel pannello) — niente più promemoria bloccati per errore
@@ -26,8 +52,10 @@ sul computer del centro.
   le righe sotto si riaggregano da sole
 - Aiuto password in Impostazioni: **Libero/Virgilio = password normale
   della casella**, Gmail = Password per app di 16 caratteri
-- STOP: nessuna modifica necessaria (verificato: ferma già tutto)
-- Test: **151/151 verdi**
+
+Nota: le correzioni v4.13 nascono da una revisione esterna (patch
+`archivio/patch/revmemo_v4.13.patch`), verificata riga per riga, integrata
+e completata con correzioni proprie prima della consegna.
 
 Storico completo delle versioni in `worklog.md`.
 

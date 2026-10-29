@@ -22,6 +22,7 @@ Avvio: doppio clic su apri_pannello.bat
 import json
 import html as html_lib
 import os
+import secrets
 import subprocess
 import sys
 import threading
@@ -39,6 +40,12 @@ if BASE not in sys.path:
     sys.path.insert(0, BASE)
 PORTA = int(os.environ.get("PANNELLO_PORTA", "8768"))
 URL_PANNELLO = f"http://127.0.0.1:{PORTA}/"
+
+# Chiave segreta di QUESTA sessione del pannello: la pagina la riceve e la
+# rimanda in ogni richiesta. Senza, una pagina web qualunque aperta nello
+# stesso browser potrebbe far partire invii, cancellare clienti o cambiare
+# il server di posta (e quindi rubare la password) parlando con 127.0.0.1.
+TOKEN = secrets.token_urlsafe(24)
 
 PERCORSO_CONFIG = os.path.join(BASE, "config.ini")
 PERCORSO_EXCEL = os.path.join(BASE, "clienti_revisioni.xlsx")
@@ -123,6 +130,7 @@ def leggi_config_raw():
     for sezione, chiavi in CHIAVI.items():
         sec = cfg[sezione] if cfg.has_section(sezione) else {}
         fuori[sezione] = {k: sec.get(k, "") for k in chiavi}
+    fuori["smtp"]["password_app"] = ""     # mai in chiaro verso il browser
     fuori["password_presente"] = bool(
         "".join((cfg["smtp"].get("password_app", "") if cfg.has_section("smtp")
                  else "").split()))
@@ -236,9 +244,30 @@ def salva_campi(modifiche):
 # =====================================================================
 #  MOTORE (revmemo.py gia' collaudato: lo uso per i dati veri)
 # =====================================================================
+MSG_CONFIG_ROTTA = ("config.ini ha una riga con formato sbagliato. Causa piu' "
+                    "comune: le righe dopo 'testo =' devono iniziare con "
+                    "QUALCHE SPAZIO. Correggi il file (o riprendi "
+                    "config_ESEMPIO.ini) e riapri il pannello.")
+
+
 def motore():
-    import revmemo
+    try:
+        import revmemo
+    except SystemExit:          # il motore esce se config.ini e' illeggibile
+        raise RuntimeError(MSG_CONFIG_ROTTA) from None
     return revmemo
+
+
+def ricarica_config(r):
+    """config FRESCO dal disco. Ritorna "" se va bene, altrimenti il
+    messaggio da mostrare (prima il pannello mostrava solo "1")."""
+    try:
+        r.CFG = r.carica_config()
+    except SystemExit:
+        return MSG_CONFIG_ROTTA
+    r.NOME_CENTRO = r.CFG["nome_centro"]
+    r.PRODOTTO = r.CFG["prodotto"]
+    return ""
 
 
 def _testo_scadenze():
@@ -275,9 +304,7 @@ def _testo_scadenze():
 def dati_stato():
     r = motore()
     # config FRESCO dal disco (il pannello l'ha appena aggiornato)
-    r.CFG = r.carica_config()
-    r.NOME_CENTRO = r.CFG["nome_centro"]
-    r.PRODOTTO = r.CFG["prodotto"]
+    errore_config = ricarica_config(r)
     cfg = leggi_config_raw()
     smtp_cfg = cfg.get("smtp", {})
     oggi = r.dt.date.today()
@@ -310,7 +337,7 @@ def dati_stato():
         "excel_presente": os.path.exists(PERCORSO_EXCEL),
         "log_presente": os.path.exists(PERCORSO_LOG),
         "clienti": None,
-        "errore": cfg.get("errore", ""),
+        "errore": cfg.get("errore", "") or errore_config,
     }
     if stato["excel_presente"]:
         try:
@@ -564,6 +591,59 @@ def lancia_azione(tipo):
     return True, ""
 
 
+def _pid_vivo(pid):
+    """True se quel numero di processo sta girando adesso (Windows e Linux)."""
+    if not pid or int(pid) <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            handle = k32.OpenProcess(0x1000, False, int(pid))
+            if not handle:
+                return False       # non esiste piu' (o non si puo' guardare)
+            try:
+                codice_uscita = ctypes.c_ulong()
+                if not k32.GetExitCodeProcess(handle, ctypes.byref(codice_uscita)):
+                    return False
+                return codice_uscita.value == 259      # STILL_ACTIVE
+            finally:
+                k32.CloseHandle(handle)
+        except Exception:
+            return False
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _libera_blocco_orfano(pid_motore=None):
+    """Cancella revmemo.lock SOLO se e' sicuramente rimasto orfano: contiene
+    il PID del motore appena chiuso, un PID illeggibile, o il PID di un
+    processo morto. Se invece il blocco appartiene a un altro invio ANCORA
+    VIVO (es. attivita' pianificata partita mentre qui mancava la password)
+    resta dov'e': cosi' nessun cliente riceve l'email doppia. Il battito da
+    15 minuti del blocco ripulisce comunque i casi rimasti indietro."""
+    percorso = os.path.join(BASE, "revmemo.lock")
+    try:
+        with open(percorso, "r", encoding="utf-8") as f:
+            testo = (f.read() or "").strip()
+        pid = int("".join(c for c in testo if c.isdigit()) or "0")
+    except (OSError, ValueError):
+        pid = 0
+    if pid and pid != pid_motore and _pid_vivo(pid):
+        return          # l'invio di un altro programma sta girando: non toccare
+    try:
+        os.remove(percorso)
+    except OSError:
+        pass
+
+
 def _esegui(tipo, comando):
     codice = 1
     try:
@@ -603,6 +683,19 @@ def _esegui(tipo, comando):
             AZIONE["righe"].append(f"ERRORE pannello: {e}")
         codice = 1
     finally:
+        if tipo == "invio" and codice not in (0, 2):
+            # fermato o crollato: il motore non ha potuto liberare il suo
+            # blocco anti-doppio-invio (codice 2 = blocco di ALTRO invio:
+            # non e' nostro, non si tocca). Lo liberiamo solo se e' davvero
+            # orfano: se appartiene a un invio ancora vivo (es. attivita'
+            # pianificata partita mentre qui mancava la password) resta
+            # dov'e', cosi' non si rischia il doppio invio.
+            with SERRATURE:
+                pid_motore = PROCESSO["p"].pid if PROCESSO["p"] else None
+            try:
+                _libera_blocco_orfano(pid_motore)
+            except Exception:
+                pass
         with SERRATURE:
             PROCESSO["p"] = None
             AZIONE["finito"] = True
@@ -660,9 +753,7 @@ def _valida_cliente(dati):
     scadenza = str(dati.get("scadenza") or "").strip()
     if not nome:
         return None, "Manca il NOME del cliente."
-    parte_dopo = email.split("@")[-1] if "@" in email else ""
-    if ("@" not in email or " " in email or len(email) < 6
-            or "." not in parte_dopo):
+    if not motore().email_valida(email):
         return None, "L'EMAIL non sembra giusta (esempio: mario.rossi@email.it)."
     if not targa:
         return None, "Manca la TARGA."
@@ -987,9 +1078,9 @@ def stato_cliente(dati):
 # =====================================================================
 def anteprima():
     r = motore()
-    r.CFG = r.carica_config()
-    r.NOME_CENTRO = r.CFG["nome_centro"]
-    r.PRODOTTO = r.CFG["prodotto"]
+    errore_config = ricarica_config(r)
+    if errore_config:
+        raise ValueError(errore_config)
     oggi = r.dt.date.today()
     cliente = {"nome": "Mario Rossi", "targa": "AB123CD",
                "scadenza": oggi + r.dt.timedelta(days=10)}
@@ -1020,9 +1111,32 @@ class Gestore(BaseHTTPRequestHandler):
     def _json(self, oggetto, codice=200):
         self._invia(codice, json.dumps(oggetto, ensure_ascii=False))
 
+    def _permesso(self, percorso):
+        """Solo la pagina del pannello (stesso indirizzo, con la chiave di
+        sessione) puo' usare le API. Blocca le richieste partite da altri
+        siti (CSRF) e quelle con un nome host falso (DNS rebinding)."""
+        if not percorso.startswith("/api/") or percorso == "/api/ping":
+            return True
+        porta = self.server.server_address[1]
+        validi = {f"127.0.0.1:{porta}", f"localhost:{porta}"}
+        if (self.headers.get("Host") or "").strip().lower() not in validi:
+            return False
+        origine = (self.headers.get("Origin") or "").strip().lower()
+        if origine and origine not in {f"http://{h}" for h in validi}:
+            return False
+        dato = self.headers.get("X-RevMemo-Token") or ""
+        return secrets.compare_digest(dato, TOKEN)
+
+    def _rifiuta(self):
+        self._json({"errore": "Richiesta non autorizzata: riapri il pannello "
+                              "dal collegamento (apri_pannello.bat)."}, 403)
+
     def _corpo_json(self):
-        lunghezza = int(self.headers.get("Content-Length") or 0)
-        if lunghezza <= 0:
+        try:
+            lunghezza = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return {}
+        if lunghezza <= 0 or lunghezza > 2_000_000:
             return {}
         try:
             return json.loads(self.rfile.read(lunghezza).decode("utf-8"))
@@ -1032,9 +1146,16 @@ class Gestore(BaseHTTPRequestHandler):
     def do_GET(self):
         percorso = urlparse(self.path).path
         try:
-            if percorso in ("/", "/index.html"):
+            if not self._permesso(percorso):
+                return self._rifiuta()
+            if percorso == "/api/ping":
+                self._json({"revmemo": True})
+            elif percorso in ("/", "/index.html"):
                 with open(PERCORSO_HTML, "rb") as f:
-                    self._invia(200, f.read(), "text/html; charset=utf-8")
+                    pagina = f.read().decode("utf-8").replace(
+                        "</head>", '<meta name="revmemo-token" content="'
+                        + TOKEN + '"></head>', 1)
+                    self._invia(200, pagina, "text/html; charset=utf-8")
             elif percorso in ("/logo.png", "/favicon.ico"):
                 percorso_file = os.path.join(BASE, "logo.png")
                 if os.path.exists(percorso_file):
@@ -1066,6 +1187,8 @@ class Gestore(BaseHTTPRequestHandler):
 
     def do_POST(self):
         percorso = urlparse(self.path).path
+        if not self._permesso(percorso):
+            return self._rifiuta()
         corpo = self._corpo_json()
         try:
             if percorso == "/api/messaggio":
@@ -1160,9 +1283,9 @@ def _pannello_nostro(porta):
     try:
         import urllib.request
         with urllib.request.urlopen(
-                f"http://127.0.0.1:{porta}/api/stato", timeout=2) as r:
+                f"http://127.0.0.1:{porta}/api/ping", timeout=2) as r:
             dati = json.loads(r.read().decode("utf-8"))
-        return isinstance(dati, dict) and "nome_centro" in dati
+        return isinstance(dati, dict) and dati.get("revmemo") is True
     except Exception:
         return False
 
@@ -1189,8 +1312,8 @@ def main():
     # crea config.ini se manca (il motore lo fa già al primo uso)
     try:
         motore()
-    except SystemExit:
-        pass
+    except (SystemExit, RuntimeError):
+        pass          # config.ini rotto: il pannello parte lo stesso e lo spiega
     # porta libera? se occupata: pannello gia' aperto -> riapro la pagina;
     # altrimenti provo le porte dopo (un altro programma puo' usarla)
     server = None
