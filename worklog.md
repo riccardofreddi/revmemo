@@ -986,3 +986,20 @@ Cliente: "ok metti tutto su github così non perdo nulla".
   RevMemo_v4.zip; copie: dist/RevMemo_v4.zip + download/RevMemo_v4_15.zip.
 - Commit + tag v4.15 + push su GitHub (token VECCHIO: revoca ancora da
   confermare dal cliente); consegna via temp.sh con sha256.
+  CORREZIONE (11-01): il push col token VECCHIO in realta' NON era
+  partito (origin/main restato a 3ab817a = v4.14).
+
+## 2026-11-01 — push v4.15 riuscito (token nuovo dal cliente)
+- Il cliente manda un token GitHub nuovo: caricati commit 2e83200
+  (v4.15) e tag v4.15; origin/main allineato (main...origin/main OK).
+- Token usato SOLO al volo per il push (git askpass via variabile
+  d'ambiente, riga di comando con output ripulito): non salvato in
+  file, config git o remote URL (remote resta https pulito, nessun
+  credential helper). Da revocare quando non serve piu'.
+- Test ri-verificati oggi PRIMA del push: v4.15 28/28, v4.14 39/39,
+  pannello 151/151, correzioni v4.13 55/55, orfano 9/9, v43 42/42,
+  v44 52/52, gen26 OK, verifica_html SUPERATA, py_compile OK.
+- ZIP consegnabile invariato: download/RevMemo_v4_15.zip, 258 file,
+  testzip OK, sha256 d8b1a166e31779f4099bebaeb630b2f54e67b3f5c3ca4201fc90d8199d2868bb
+  (marker v4.15 verificati DENTRO lo zip: VERSIONE 4.15, ricerca 35,
+  pulsante b-risposte).
