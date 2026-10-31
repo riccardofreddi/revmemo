@@ -189,7 +189,10 @@ button.badge:hover{filter:brightness(.92)}
   <div class="carta">
     <h2>Azioni</h2>
     <p class="desc">La <b>PROVA</b> non manda niente: mostra solo chi riceverebe
-       l'email. <b>INVIA ORA</b> manda le email vere ai clienti. Mentre
+       l'email. <b>INVIA ORA</b> manda le email vere ai clienti.
+       <b>CONTROLLA LE RISPOSTE STOP</b> legge la casella email e segna
+       chi ha chiesto lo STOP, senza mandare niente (utile se il computer
+       resta spento più di una settimana). Mentre
        lavora puoi continuare a usare il pannello, fermarla con <b>FERMA</b>
        o nasconderla con <b>CHIUDI</b>: il risultato resta qui finché non
        lo chiudi tu.</p>
@@ -197,6 +200,8 @@ button.badge:hover{filter:brightness(.92)}
       title="Simulazione: NON manda nessuna email. Mostra solo chi riceverebe il promemoria, cosi' puoi controllare che tutto sia giusto.">▶️ PROVA (nessun invio)</button>
     <button class="bottone" id="b-invia"
       title="Manda le email VERE ai clienti che sono in finestra di invio (chiede prima una conferma). Ogni promemoria parte UNA SOLA VOLTA.">✅ INVIA ORA</button>
+    <button class="bottone vuoto" id="b-risposte"
+      title="Legge la casella email e registra le risposte STOP dei clienti SENZA mandare niente. Serve raramente: l'attività pianificata giornaliera lo fa già ogni mattina; serve se il computer resta spento più di una settimana, così nessuna richiesta si perde.">📭 CONTROLLA LE RISPOSTE STOP</button>
     <button class="bottone rosso nascosto" id="b-ferma"
       title="Interrompe subito l'azione in corso (i promemoria gia' partiti restano inviati).">⏹️ FERMA</button>
     <button class="bottone grigio nascosto" id="b-chiudi-uscita"
@@ -925,7 +930,7 @@ $("b-salva-impostazioni").addEventListener("click", async () => {
 // puoi FERMARE l'azione o CHIUDERE la finestra del risultato (durante e
 // DOPO il lavoro: resta visibile finche' non la chiudi tu)
 let sondaggio = null;
-const BOTTONI_AZIONE = ["b-prova", "b-invia", "b-controllo"];
+const BOTTONI_AZIONE = ["b-prova", "b-invia", "b-risposte", "b-controllo"];
 function impostaBottoni(disabilita) {
   BOTTONI_AZIONE.forEach(id => $(id).disabled = disabilita);
 }
@@ -970,6 +975,8 @@ $("b-prova").addEventListener("click", () =>
   azione("prova", "Provo senza mandare NIENTE. Procedo?"));
 $("b-invia").addEventListener("click", () =>
   azione("invio", "Partiranno le email VERE ai clienti in finestra di invio.\nProcedo?"));
+$("b-risposte").addEventListener("click", () =>
+  azione("risposte"));
 $("b-controllo").addEventListener("click", () =>
   azione("controllo", null, "uscita-controllo", "giratore-controllo"));
 $("b-ferma").addEventListener("click", async () => {

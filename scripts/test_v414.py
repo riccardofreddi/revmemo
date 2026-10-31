@@ -47,9 +47,11 @@ def lock_vecchio(percorso, minuti=20):
 
 
 print("== A) VERSIONE unica ==")
-check("VERSIONE = 4.14", getattr(r, "VERSIONE", "") == "4.14")
+versione = getattr(r, "VERSIONE", "")
+check("VERSIONE presente nel motore", bool(versione))
 testo = open(os.path.join(PACCHETTO, "revmemo.py"), encoding="utf-8").read()
-check("intestazione 4.14 (PRO)", "versione 4.14 (PRO)" in testo)
+check(f"intestazione allineata alla versione ({versione})",
+      f"versione {versione} (PRO)" in testo)
 check("non esiste piu' la scritta 4.4 (PRO)", "versione 4.4 (PRO)" not in testo)
 check("il banner mostra la versione", "v{VERSIONE}" in testo)
 

@@ -930,3 +930,59 @@ Cliente: "ok metti tutto su github così non perdo nulla".
   RevMemo_v4.zip; copie: dist/RevMemo_v4.zip + download/RevMemo_v4_14.zip.
 - Commit + tag v4.14 + push su GitHub (token VECCHIO ancora attivo:
   cliente sollecitato alla revoca); consegna via temp.sh con sha256.
+
+## 2026-10-31 — v4.15 realizzata (ok cliente: "ok procedi")
+
+- Contesto: il cliente nota che lo STOP viene registrato "solo dopo un
+  invio e guardando gli ultimi 7 giorni" e chiede: "se stiamo a 10 e
+  faccio invio legge anche i 3 mancanti?" — verificato riga per riga:
+  ha ragione, la ricerca IMAP e' SINCE(oggi-7): una risposta piu'
+  vecchia di 7 giorni dall'ultimo controllo sfugge. Con l'attivita'
+  pianificata giornaliera non capita (il controllo gira a OGNI giro,
+  anche senza invii), ma il buco e' reale se il computer resta spento
+  oltre una settimana. WhatsApp posticipato: "il cliente non lo vuole
+  piu'. teniamolo per un futuro".
+- SCOPE v4.15 (approvato): (a) GIORNI_DI_RICERCA 7 -> 35 (tutto l'arco
+  fra il primo promemoria e la scadenza); (b) pulsante del pannello
+  "CONTROLLA LE RISPOSTE STOP" = motore --solo-risposte (registra gli
+  STOP senza inviare niente).
+- (a) revmemo.py: GIORNI_DI_RICERCA = 35; commenti aggiornati (blocco
+  3-bis "35 giorni = tutto l'arco...", memoria stop_gestiti). LEGGIMI
+  sezione 6: i due "ultimi 7 giorni" -> 35 + nota sul pulsante nuovo
+  (scripts/inserisci_novita_v415.py, CRLF preservato, idempotente).
+- (b) revmemo.py: _solo_risposte (banner "Controllo risposte STOP
+  (NESSUN invio)"; file mancante -> messaggio chiaro SENZA creare il
+  file di esempio, esce 1; BloccoInvio preso PRIMA: se un altro invio
+  sta girando esce 0 con "aspetta che finisca"; password mancante ->
+  messaggio chiaro ed esce 1; riepilogo "NESSUNA nuova risposta STOP"
+  oppure "FATTO: N risposta/e registrata/e. Nessuna email inviata").
+  controlla_risposte: nuovo parametro in_invio=True (il giro di invio
+  resta ESATTAMENTE com'era; False: gli avvisi dicono "Riprova tra
+  qualche minuto dal pannello"). pannello.py: comandi["risposte"] =
+  [motore --solo-risposte]; guard file clienti esteso a
+  ("invio", "risposte"). pannello.html: pulsante #b-risposte
+  (senza conferma: niente invii), BOTTONI_AZIONE + b-risposte
+  (disattivato durante le azioni), card Azioni aggiornata.
+- test_v414.py: sezione A resa versione-INDIPENDENTE (intestazione
+  allineata a r.VERSIONE): resta verde per le versioni future.
+- TEST: scripts/test_v415.py (nuovo, 28 controlli): 28/28 VERDI
+  (35 giorni ovunque; in_invio default True; --solo-risposte: file
+  mancante senza creare l'esempio + codice 1, senza password messaggio
+  chiaro e niente RIEPILOGO invii, blocco invio VIVO rispettato ed
+  esce 0 senza riscrivere il lock, --help, pannello agganciato,
+  LEGGIMI con NOVITA' e 35 giorni). Suite complete su
+  REVMEMO_PKG=download/RevMemo: pannello 151/151; v4.14 39/39;
+  correzioni 55/55; orfano 9/9; v43 42/42; v44 52/52; gen26 OK;
+  verifica_html SUPERATA; v4 51+2, v41 31+2, v42 20+2 (le stesse 2
+  pre-esistenti: pacchetto di sviluppo con config dentro).
+  py_compile OK. __pycache__ puliti prima della build.
+  Nota tecnica: durante la sessione alcuni file senza modifiche hanno
+  preso il bit +x (filesystem): ripristinati con git checkout per un
+  commit pulito.
+- README.md: versione attuale v4.15 con l'elenco; LEGGIMI.txt (repo +
+  pacchetto live) con NOVITA' v4.15 sopra la v4.14. Nessuna foto
+  nuova doverosa oltre allo screenshot della Home col pulsante.
+- ZIP ricostruito con scripts/ricrea_zip_revmemo_v45.py -> download/
+  RevMemo_v4.zip; copie: dist/RevMemo_v4.zip + download/RevMemo_v4_15.zip.
+- Commit + tag v4.15 + push su GitHub (token VECCHIO: revoca ancora da
+  confermare dal cliente); consegna via temp.sh con sha256.

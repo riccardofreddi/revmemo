@@ -579,11 +579,12 @@ def lancia_azione(tipo):
         comandi = {
             "prova": [eseguibile(), MOTORE, "--dry-run"],
             "invio": [eseguibile(), MOTORE],
+            "risposte": [eseguibile(), MOTORE, "--solo-risposte"],
             "controllo": [eseguibile(), CONTROLLO],
         }
         if tipo not in comandi:
             return False, "Azione sconosciuta."
-        if tipo == "invio" and not os.path.exists(PERCORSO_EXCEL):
+        if tipo in ("invio", "risposte") and not os.path.exists(PERCORSO_EXCEL):
             return False, "Prima crea il file clienti (si crea aprendo il pannello)."
         AZIONE.update({"in_corso": True, "tipo": tipo, "righe": [],
                        "finito": False, "codice": None, "fermata": False})

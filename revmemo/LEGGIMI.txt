@@ -3,6 +3,22 @@
  (questo e' l'unico file di istruzioni: gli altri si usano, non si leggono)
 ======================================================================
 
+NOVITA' v4.15 (ottobre 2026)
+----------------------------------------------------------------------
+- NESSUNA RICHIESTA STOP SI PERDE PIU': il controllo delle risposte
+  guarda ora gli ultimi 35 giorni della casella email (prima 7). Anche
+  se il computer resta spento per settimane, quando riparte il programma
+  trova comunque le risposte STOP arrivate nel frattempo, PRIMA di
+  inviare qualsiasi email.
+- NUOVO PULSANTE "CONTROLLA LE RISPOSTE STOP" nel pannello: legge la
+  casella email e registra gli STOP nel file clienti SENZA mandare
+  niente. Serve raramente (l'attivita' pianificata giornaliera controlla
+  gia' ogni mattina), ma dopo un lungo fermo puoi verificare con un
+  click, quando vuoi, senza invii.
+- La ricerca resta "di passaggio": le email dei clienti non risultano
+  lette, e le risposte gia' gestite non vengono registrate due volte
+  (riattivare un cliente a mano resta sicuro).
+
 NOVITA' v4.14 (ottobre 2026)
 ----------------------------------------------------------------------
 - NIENTE FILE CLIENTI ROVINATI: se un invio automatico parte mentre
@@ -262,13 +278,16 @@ Nell'email c'e' scritto: "Non vuoi piu' ricevere promemoria? Rispondi
 con oggetto STOP". Ecco cosa succede:
 
 - Quando lanci avvia_invio.bat (o avvia_prova.bat), PRIMA di inviare il
-  programma guarda le email degli ultimi 7 giorni arrivate nella casella
+  programma guarda le email degli ultimi 35 giorni arrivate nella casella
   mittente (quella in config.ini alla riga mittente)
 - Se una risposta viene da un cliente presente nell'Excel (stesso
   indirizzo email) e contiene la parola STOP (vale stop, Stop, STOP,
   anche dentro una frase), il programma scrive STOP nella colonna
   Attivo di quel cliente e te lo mostra a schermo
 - Da quel momento quel cliente non riceve piu' niente
+- In piu', dalla v4.15: nel pannello c'e' il pulsante CONTROLLA LE
+  RISPOSTE STOP che fa questo controllo quando vuoi tu, senza inviare
+  niente (comodo dopo un lungo fermo del computer)
 - Per riattivarlo: nell'Excel rimetti Attivo = SÌ
 - Nella stessa casella, un cliente con 2 macchine viene messo in pausa
   su entrambe le righe (stesso indirizzo = stessa persona)
@@ -295,7 +314,7 @@ Attenzione:
 - Lo STOP vale solo se l'indirizzo del mittente coincide con quello
   scritto nell'Excel (colonna Email)
 - Se il cliente ha letto tu la sua email in Gmail prima di lanciare il
-  programma: nessun problema, la ricerca guarda gli ultimi 7 giorni
+  programma: nessun problema, la ricerca guarda gli ultimi 35 giorni
 
 7) IL MESSAGGIO E IL LOOK DELLE EMAIL
 ----------------------------------------------------------------------

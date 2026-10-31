@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 =====================================================================
- RevMemo - Promemoria revisioni automatici      versione 4.14 (PRO)
+ RevMemo - Promemoria revisioni automatici      versione 4.15 (PRO)
 =====================================================================
 Cosa fa:
  - Legge i clienti dal file Excel (clienti_revisioni.xlsx; se manca,
@@ -47,6 +47,8 @@ Uso:
     python revmemo.py --dry-run   PROVA: mostra senza inviare
     python revmemo.py --file x.xlsx   usa un file clienti alternativo
     python revmemo.py --colora-excel  mette/aggiorna i colori nell'Excel
+    python revmemo.py --solo-risposte   registra solo le risposte STOP
+                                        dei clienti (niente invii)
 =====================================================================
 """
 
@@ -80,7 +82,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 
 # LA versione del programma in UN SOLO POSTO: chi vuole mostrarla (pannello,
 # riepilogo, test) la legge da qui, cosi' non puo' mai essere diversa.
-VERSIONE = "4.14"
+VERSIONE = "4.15"
 
 # Se c'e' il runtime incluso e NON lo stiamo usando, ripartiamo con quello:
 # cosi' il Python installato sul PC non conta piu' (zero problemi di versione).
@@ -699,10 +701,12 @@ def registra_invio(email, targa, tipo, giorni, descrizione, scadenza):
 # =====================================================================
 # Come funziona: prima di inviare, il programma si collega alla casella
 # mittente (Gmail/IMAP, porta 993) con la STESSA email e la STESSA
-# password_app di config.ini, guarda le email degli ultimi 7 giorni e,
+# password_app di config.ini, guarda le email degli ultimi 35 giorni e,
 # se un cliente ha risposto con la parola STOP, scrive STOP nella
 # colonna Attivo dell'Excel. Le email degli altri mittenti non vengono
-# toccate (restano lette/non lette come sono).
+# toccate (restano lette/non lette come sono). 35 giorni = tutto l'arco
+# fra il primo promemoria e la scadenza: anche se il programma resta
+# fermo settimane, nessuna richiesta STOP sfugge (v4.15: prima 7).
 #
 # PROTEZIONI v4.1/v4.2 (imparate dai test veri):
 # 1) le COPIE dei promemoria che il centro si manda a se stesso vengono
@@ -718,7 +722,9 @@ def registra_invio(email, targa, tipo, giorni, descrizione, scadenza):
 IMAP_PORTA = 993
 _MESI_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-GIORNI_DI_RICERCA = 7          # guarda le email degli ultimi N giorni
+GIORNI_DI_RICERCA = 35         # guarda le email degli ultimi N giorni
+                               # (35 dal v4.15, prima 7: copre l'arco
+                               # completo dei promemoria, niente STOP persi)
 MASSIMO_EMAIL_DA_VEDERE = 150  # oltre: considera solo le piu' recenti (e lo dice)
 
 
@@ -741,7 +747,7 @@ def causa_tls(e):
 
 
 # Memoria degli STOP gia' registrati. Senza, una risposta STOP che resta
-# nella posta (ultimi 7 giorni) rimetterebbe in pausa un cliente che il
+# nella posta (rientra nella ricerca) rimetterebbe in pausa un cliente che il
 # titolare ha appena RIATTIVATO a mano. Una riga per email: data;chiave.
 def percorso_stop_gestiti():
     return os.path.join(BASE, "stop_gestiti.txt")
@@ -1014,10 +1020,12 @@ def _segna_stop_serrato(percorso_excel, email_mittente, esito=None):
         return []
 
 
-def controlla_risposte(percorso_excel, dry_run=False):
+def controlla_risposte(percorso_excel, dry_run=False, in_invio=True):
     """Guarda la posta in arrivo della casella mittente: se un cliente ha
     risposto STOP, scrive Attivo = STOP nell'Excel. Ritorna la lista degli
-    eventi ([] = nessuno, None = controllo non eseguito)."""
+    eventi ([] = nessuno, None = controllo non eseguito). Con in_invio
+    False (pulsante dedicato del pannello) gli avvisi parlano di riprova
+    invece che di invii."""
     if not MITTENTE_EMAIL:
         return None
     if not MITTENTE_PASSWORD:
@@ -1035,7 +1043,8 @@ def controlla_risposte(percorso_excel, dry_run=False):
               f"({e.__class__.__name__}: {e}).")
         if causa_tls(e):
             print("        " + causa_tls(e))
-        print("         Proseguo comunque con gli invii.")
+        print("         " + ("Proseguo comunque con gli invii." if in_invio
+                             else "Riprova tra qualche minuto dal pannello."))
         return None
     eventi = []
     try:
@@ -1133,7 +1142,8 @@ def controlla_risposte(percorso_excel, dry_run=False):
             print("  nessun nuovo STOP.")
     except Exception as e:
         print(f"AVVISO: controllo risposte interrotto ({e.__class__.__name__}: {e}).")
-        print("         Proseguo comunque con gli invii.")
+        print("         " + ("Proseguo comunque con gli invii." if in_invio
+                             else "Riprova tra qualche minuto dal pannello."))
     finally:
         try:
             posta.logout()
@@ -2125,6 +2135,54 @@ def salva_excel_sicuro(wb, percorso_excel):
             pass
 
 
+def _solo_risposte(percorso_excel):
+    """Il pulsante 'CONTROLLA LE RISPOSTE STOP' del pannello: guarda la
+    posta in arrivo e registra gli STOP nell'Excel SENZA inviare niente
+    (e senza il resto del giro di invio). Con l'attivita' pianificata
+    giornaliera serve quasi mai, ma se il computer resta spento piu' di
+    una settimana nessuna richiesta si perde: si recupera quando si
+    vuole, con un click e senza email."""
+    print("=" * 62)
+    print(f"  {PRODOTTO} v{VERSIONE} - Controllo risposte STOP "
+          "(NESSUN invio)")
+    print("=" * 62)
+    print(f"Oggi: {dt.date.today().strftime('%d/%m/%Y')}")
+    print(f"Centro: {NOME_CENTRO}   |   "
+          f"Mittente: {MITTENTE_EMAIL or '(non impostato)'}")
+    print(f"File clienti: {percorso_excel}")
+    print()
+    if not os.path.exists(percorso_excel):
+        print("Non trovo il file clienti: aprilo una volta dal pannello")
+        print("(basta una PROVA) e poi riprova il controllo delle risposte.")
+        return 1
+    blocco = BloccoInvio()
+    if not blocco.prendi():
+        print("Un altro invio sta girando (pannello o attivita' pianificata):")
+        print("aspetta che finisca e riprova: quel giro controlla le risposte.")
+        return 0
+    try:
+        if not MITTENTE_EMAIL or not MITTENTE_PASSWORD:
+            print("Per leggere le risposte servono mittente e password per app")
+            print("(config.ini sezione [smtp] o Impostazioni nel pannello).")
+            return 1
+        eventi = controlla_risposte(percorso_excel, dry_run=False,
+                                    in_invio=False)
+    finally:
+        blocco.rilascia()
+    print()
+    print("-" * 62)
+    if eventi is None:
+        print("Controllo non eseguito: vedi gli avvisi qui sopra.")
+        return 1
+    if not eventi:
+        print("NESSUNA nuova risposta STOP. Nessuna email inviata.")
+    else:
+        print(f"FATTO: {len(eventi)} risposta/e STOP registrata/e nell'Excel. "
+              "Nessuna email inviata.")
+    print("-" * 62)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="RevMemo - promemoria revisioni")
     parser.add_argument("--dry-run", action="store_true",
@@ -2133,11 +2191,16 @@ def main():
                         help="file clienti alternativo")
     parser.add_argument("--colora-excel", action="store_true",
                         help="mette/aggiorna i colori nel file clienti ed esce")
+    parser.add_argument("--solo-risposte", action="store_true",
+                        help="registra solo le risposte STOP dei clienti "
+                             "(nessun invio)")
     args = parser.parse_args()
 
     percorso_excel = args.file or os.path.join(BASE, FILE_EXCEL)
     if args.colora_excel:
         sys.exit(0 if migliora_excel(percorso_excel) else 1)
+    if args.solo_risposte:
+        return _solo_risposte(percorso_excel)
     crea_excel_se_manca(percorso_excel)
     aggiorna_template()      # crea/aggiorna il design email (con backup)
 

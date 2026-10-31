@@ -10,14 +10,31 @@ sul computer del centro.
 | Cartella | Contenuto |
 |---|---|
 | `revmemo/` | Il pacchetto completo pronto da installare: pannello (`pannello.py` + `pannello.html`), motore (`revmemo.py`), runtime Windows Python 3.12.8 incorporato con openpyxl 3.1.5, guide (`LEGGIMI.txt`, `ISTRUZIONI_CENTRO.md`, `GUIDA_INSTALLATORE.md`) |
-| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.14); `archivio/` = versioni precedenti |
+| `dist/` | I file ZIP consegnati: `RevMemo_v4.zip` = versione attuale (v4.15); `archivio/` = versioni precedenti |
 | `scripts/` | Strumenti di sviluppo: suite di test `test_pannello.py` (151 controlli) e `test_correzioni_v413.py` (55 controlli), script per ricostruire lo ZIP (`ricrea_zip_revmemo_v45.py`), verifiche HTML, harness fotografici |
 | `scripts/revmemo_build/` | Asset per ricostruire il runtime incorporato (python_embed.zip + wheel openpyxl) |
 | `foto/` | Schermate di verifica del pannello, versione per versione |
 | `archivio/` | Progetti precedenti (`promemoria-revisioni`, la prima versione senza pannello) |
 | `worklog.md` | Diario di sviluppo: ogni versione con richieste, scelte, test e verifiche |
 
-## Versione attuale: v4.14 (2026-10-30)
+## Versione attuale: v4.15 (2026-10-31)
+
+- **Nessuna richiesta STOP si perde più**: la ricerca delle risposte
+  guarda gli ultimi **35 giorni** della casella email (prima 7) — anche
+  a computer fermo per settimane, al rientro le richieste vengono
+  trovate e registrate PRIMA di inviare qualsiasi email.
+- **Nuovo pulsante "CONTROLLA LE RISPOSTE STOP"** nella Home del
+  pannello: legge la casella e registra gli STOP nel file clienti
+  SENZA mandare niente (motore: `--solo-risposte`). Rispetta il blocco
+  anti-doppio-invio: se un altro invio sta girando, aspetta e lo dice.
+- `controlla_risposte(in_invio=...)`: il giro di invio si comporta
+  esattamente come prima; gli avvisi del pulsante dedicato parlano di
+  "riprova" invece che di invii.
+- Test: **test_v415.py 28/28 (nuovo)** + 151/151 pannello + 39/39 v4.14
+  + 55/55 correzioni + 9/9 orfano + v43 42/42 + v44 52/52 + verifica
+  HTML; v4/v41/v42 con le solite 2 verifiche pre-esistenti.
+
+### v4.14 (2026-10-30)
 
 - **Serratura condivisa del file clienti**: pannello e motore (processi
   separati) salvano il file Excel UNO ALLA VOLTA (`excel.lock`, PID del
